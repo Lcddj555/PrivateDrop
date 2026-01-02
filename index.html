@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>链上资金匿名分发协议</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.ethers.io/lib/ethers-6.0.umd.min.js" type="text/javascript"></script>
+    <style>
+        body { padding-top: 56px; background: #f8f9fa; }
+        .navbar-brand { font-weight: bold; }
+        .tab-content { padding: 30px; background: white; border-radius: 10px; margin-top: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .fire { color: #ff6b00; font-size: 1.2em; }
+        .warning { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">链上资金匿名分发协议</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="nav nav-tabs ms-auto">
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#deposit">存款分发</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#withdraw">取款</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#gas">发放Gas</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#docs">技术文档</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#whitepaper">白皮书</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container tab-content">
+        <!-- 存款分发标签 -->
+        <div class="tab-pane fade show active" id="deposit">
+            <h2>存款并分发资金</h2>
+            <p class="text-muted">请严格遵守当地法律法规。本工具仅提供技术支持。</p>
+
+            <div class="mb-3">
+                <label>合约地址</label>
+                <input type="text" class="form-control" id="dropContract" placeholder="PrivateDrop合约地址">
+            </div>
+            <div class="mb-3">
+                <label>Gas兑换合约地址（可选）</label>
+                <input type="text" class="form-control" id="gasContract" placeholder="GasAutoSwap合约地址">
+            </div>
+
+            <div class="mb-3">
+                <label>代币类型</label>
+                <select class="form-select" id="tokenType">
+                    <option value="native">原生币 (ETH/Base ETH)</option>
+                    <option value="usdt">USDT</option>
+                    <option value="usdc">USDC</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label>总存款金额</label>
+                <input type="text" class="form-control" id="totalAmount" placeholder="例如 1000">
+                <small>手续费1%：<span id="fee">0</span> | 净入金：<span id="net">0</span></small>
+            </div>
+
+            <div class="mb-3">
+                <label>Owner地址（管理权限）</label>
+                <input type="text" class="form-control" id="ownerAddr" placeholder="你的冷钱包地址">
+            </div>
+
+            <div class="mb-3">
+                <label>Recovery地址 <span class="fire">🔥</span>（紧急回收，务必冷钱包）</label>
+                <input type="text" class="form-control" id="recoveryAddr" placeholder="保命地址">
+            </div>
+
+            <h4>取款人分配（最多10个）</h4>
+            <table class="table" id="spenderTable">
+                <thead><tr><th>序号</th><th>取款地址</th><th>限额</th><th>操作</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button class="btn btn-secondary" onclick="addSpenderRow()">+ 添加</button>
+            <p class="mt-2">当前分配总和：<span id="sumLimits">0</span>（不能超过净入金）</p>
+
+            <button class="btn btn-primary btn-lg mt-3" onclick="deposit()">创建资金池并存款</button>
+            <p id="depositStatus" class="mt-3"></p>
+        </div>
+
+        <!-- 取款标签 -->
+        <div class="tab-pane fade" id="withdraw">
+            <h2>取款</h2>
+            <input type="text" class="form-control mb-3" id="withdrawContract" placeholder="合约地址">
+            <input type="text" class="form-control mb-3" id="withdrawId" placeholder="资金池ID">
+            <input type="text" class="form-control mb-3" id="withdrawIndex" placeholder="你的序号 (0-9)">
+            <button class="btn btn-success btn-lg" onclick="checkAndWithdraw()">查询并一键取款</button>
+            <p id="withdrawStatus" class="mt-3"></p>
+            <p id="remainingInfo" class="mt-3"></p>
+        </div>
+
+        <!-- 发放Gas标签 -->
+        <div class="tab-pane fade" id="gas">
+            <h2>发放Gas（单笔最多10 USDT）</h2>
+            <input type="text" class="form-control mb-3" id="gasSwapContract" placeholder="GasAutoSwap合约地址">
+            <input type="text" class="form-control mb-3" id="gasRecipient" placeholder="小弟马甲地址">
+            <input type="text" class="form-control mb-3" id="gasUsdtAmount" value="2" placeholder="USDT金额 (最多10)">
+            <button class="btn btn-warning btn-lg" onclick="sendGas()">自动兑换并发送Gas</button>
+            <p id="gasStatus" class="mt-3"></p>
+        </div>
+
+        <!-- 技术文档标签 -->
+        <div class="tab-pane fade" id="docs">
+            <h2>PrivateDropV17 技术参考文档</h2>
+            <pre>版本： 1.7.0
+网络： 暂只支持base网络（因为gas低流动性也还不错）
+许可证： MIT
+1. 合约概述
+PrivateDropV17 是一个非托管的链上资金分发协议。其核心是通过独立的存款池、链下签名授权与链上验证机制，在实现存款人与取款人链上地址关联切断的同时，
+保留完整的、可由存款人自主证明的资金流向记录。
+2. 核心数据结构
+solidity
+struct Spender {
+    address spenderAddress; // 取款人地址
+    uint256 limit;          // 可取款总额度 (0 表示无额度限制，可提取池内全部余额)
+    uint256 withdrawn;      // 已取款金额
+    uint256 nonce;          // 签名随机数，防重放
+}
+
+struct Deposit {
+    address token;          // 资产地址，address(0) 代表原生代币 (ETH/BNB等)
+    uint256 balance;        // 资金池当前余额
+    address ownerAddress;   // 存款人/管理员地址
+    address recoveryAddress;// 紧急恢复地址
+    bool frozen;            // 资金池冻结状态
+    uint256 ownerNonce;     // 存款人操作随机数，防重放
+    Spender[] spenders;     // 取款人列表
+}
+3. 状态变量与常量
+
+feeWallet	address payable	协议手续费接收地址。可由合约所有者更新。
+owner	address	合约部署者地址，拥有紧急停止和更新feeWallet的权限。
+emergencyStop	bool	全局紧急开关。为 true 时，除query外的所有用户函数暂停。
+deposits	Deposit[]	存储所有存款池的数组。存款池ID即其在此数组中的索引。
+FEE_RATE	uint256	手续费率，固定为 300 (即 3%，基数 10000)。
+MAX_SPENDERS	uint256	单个资金池最大取款人数，固定为 10。
+4. 函数详解
+
+4.1 合约管理函数 (仅 owner 可调用)
+
+updateFeeWallet(address payable newFeeWallet)
+
+功能：更新协议手续费接收地址。
+
+前置条件：newFeeWallet 不能为零地址。
+
+触发事件：FeeWalletUpdated
+
+toggleEmergencyStop(bool stop)
+
+功能：设置或解除全局紧急停止状态。
+
+触发事件：EmergencyStopToggled
+
+4.2 存款函数
+
+depositNative(address ownerAddress, address recoveryAddress, address[] calldata spenderAddresses, uint256[] calldata spenderLimits) payable
+
+功能：使用原生代币（如ETH）创建存款池。
+
+参数：
+
+ownerAddress：存款人地址，拥有管理权。
+
+recoveryAddress：紧急恢复地址。
+
+spenderAddresses：取款人地址数组。
+
+spenderLimits：对应取款人的额度数组。
+
+前置条件：
+
+msg.value > 0.01 ether。
+
+参数数组长度匹配且介于1到MAX_SPENDERS之间。
+
+所有地址非零。
+
+内部操作：
+
+计算手续费 (msg.value * FEE_RATE / 10000) 并发送至feeWallet。
+
+将剩余资金存入新创建的Deposit结构体。
+
+触发事件：Deposited
+
+depositERC20(address token, uint256 totalAmount, address ownerAddress, address recoveryAddress, address[] calldata spenderAddresses, uint256[] calldata spenderLimits)
+
+功能：使用ERC20代币创建存款池。
+
+参数：比depositNative多一个token（代币地址）和totalAmount（存款总额）。
+
+前置条件：
+
+token != address(0)。
+
+totalAmount > 0。
+
+其他条件同depositNative。
+
+内部操作：
+
+从调用者转移totalAmount的代币至合约。
+
+计算手续费并转移至feeWallet。
+
+创建存款池。
+
+触发事件：Deposited
+
+4.3 取款与核心操作函数
+
+withdraw(uint256 id, uint256 amount, uint256 spenderIndex, uint8 v, bytes32 r, bytes32 s)
+
+功能：取款人从指定存款池中提取资金。
+
+签名消息：keccak256(abi.encode(id, amount, spenderIndex, nonce, block.chainid, address(this)))
+
+验证流程：
+
+检查资金池未冻结。
+
+使用ecrecover验证签名与spenderAddress匹配。
+
+检查取款金额未超过其剩余额度（若有）及资金池余额。
+
+状态更新：
+
+资金池余额减少。
+
+对应Spender的withdrawn增加，nonce递增。
+
+资金转移：向msg.sender（必须为取款人本人）转账。
+
+触发事件：Withdrawn
+
+freeze(uint256 id, uint8 v, bytes32 r, bytes32 s)
+
+功能：存款人冻结资金池，禁止所有取款。
+
+签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“freeze”, ownerNonce)), block.chainid, address(this)))
+
+状态更新：Deposit.frozen = true，ownerNonce++。
+
+触发事件：Frozen
+
+unfreeze(uint256 id, uint8 v, bytes32 r, bytes32 s)
+
+功能：存款人解冻资金池。
+
+逻辑：同freeze，消息中动作字符串为”unfreeze”。
+
+状态更新：Deposit.frozen = false，ownerNonce++。
+
+触发事件：Unfrozen
+
+recover(uint256 id, uint8 v, bytes32 r, bytes32 s)
+
+功能：紧急恢复。由recoveryAddress调用，在存款人签名授权后，一次性将资金池全部剩余余额转至恢复地址，并冻结该池。
+
+签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“recover”, ownerNonce)), block.chainid, address(this)))
+
+状态更新：资金池余额归零，并冻结。
+
+触发事件：Recovered
+
+cleanUpDeposit(uint256 id, uint8 v, bytes32 r, bytes32 s)
+
+功能：存款人在资金全部分配完毕后，清理资金池的关联记录，增强隐私。
+
+前置条件：
+
+资金池余额为0。
+
+所有设定了额度的取款人，其withdrawn必须达到limit。
+
+状态更新：
+
+ownerAddress 和 recoveryAddress 设置为 address(0)。
+
+清空 spenders 数组。
+
+重要提示：此操作仅清除合约存储中的可见信息，无法删除已发生的链上事件日志(Deposited, Withdrawn等)。
+
+触发事件：DepositCleaned
+
+4.4 查询函数
+
+queryAsSpender(uint256 id, uint256 spenderIndex) → (uint256 myRemaining, uint256 totalBalance, address storedSpenderAddress, address token) view
+
+功能：取款人查询自己的剩余额度、资金池总余额、合约中存储的自身地址及资产类型。
+
+权限：无限制，公开查询。
+
+queryOwnerBasic(uint256 id, uint8 v, bytes32 r, bytes32 s) → (uint256 balance, bool frozen, address recoveryAddress, address ownerAddress, uint256 ownerNonce, address token) view
+
+功能：存款人签名后，查询资金池的基本状态信息。
+
+签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“queryBasic”)), block.chainid, address(this)))
+
+queryOwnerSpenders(uint256 id, uint8 v, bytes32 r, bytes32 s) → (uint256[] memory limits, uint256[] memory withdrawns, uint256[] memory remainings, address[] memory spenderAddrs) view
+
+功能：存款人签名后，查询所有取款人的详细额度与取款情况。
+
+签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“querySpenders”)), block.chainid, address(this)))
+
+getDepositInfo(uint256 id) → (address token, uint256 balance, bool frozen, uint256 spenderCount, bool stopped) view
+
+功能：任何人可查询资金池的公开概要信息及合约全局状态。
+5. 事件列表
+Deposited	(id, token, totalAmount, netAmount)	存款池创建成功
+Withdrawn	(id, token, amount, to)	取款成功
+Frozen	(id)	资金池被冻结
+Unfrozen	(id)	资金池被解冻
+Recovered	(id, token, amount, to)	紧急恢复被执行
+DepositCleaned	(id)	资金池记录被清理
+FeeWalletUpdated	(oldWallet, newWallet)	手续费地址更新
+EmergencyStopToggled	(stopped)	紧急状态切换
+6. 安全要点与开发者说明
+签名安全：所有签名必须在可信的离线环境中生成。前端应使用 eth_signTypedData_v4 以提升用户体验和安全。
+
+Nonce管理：Spender.nonce 和 Deposit.ownerNonce 在每次成功签名后递增，确保同一签名无法重复使用。
+
+隐私限制：cleanUpDeposit 功能仅提供存储层面的隐私增强。完整的交易历史仍可通过区块链浏览器查询相关事件日志进行重构。
+
+Gas预留：取款人(Spender)在执行 withdraw 前，必须确保其地址有足够支付交易Gas费的网络原生代币。
+
+不可升级性：合约未设置代理模式，部署后逻辑不可更改。所有交互需基于已验证的ABI。
+文档版本： 1.0
+最后更新： 2026-01-01
+此文档仅为技术参考，不构成法律或财务建议。部署和使用前，请务必进行独立审计并遵守相关法律法规。</pre>
+        </div>
+
+        <!-- 白皮书标签 -->
+        <div class="tab-pane fade" id="whitepaper">
+            <h2>PrivateDrop：可审计隐私支付协议</h2>
+            <p>本协议提供一种技术中立的链上资金管理工具，旨在为合法商业活动提供隐私保护。</p>
+            <p>核心原则：非托管、多重签名、独立隔离、记录可清理。</p>
+            <p>请严格遵守您所在司法管辖区的法律法规。</p>
+            <p>版本：1.7.0 | 更新日期：2026年1月</p>
+<pre>—— 为合法商业活动提供链上隐私与合规自证的下一代标准
+摘要
+在区块链技术重塑金融基础设施的时代，公开透明的账本在带来信任的同时，也暴露了商业支付活动的核心敏感信息。PrivateDrop 协议应运而生，旨在解决一个关键矛盾：如何在不可篡改的链上环境中
+，进行既保护商业机密与个人隐私，又能完全满足司法合规要求的支付？
+本协议提出并实现了一种全新的“自主主权审计”范式。我们不为“匿名”而设计，而为“可审计的隐私”而构建。通过将生成合规证据的能力与责任完整地交还给支付方（企业或组织），
+PrivateDrop 在协议层面确保了数据的绝对真实，又在应用层面赋予了支付方满足其特定法律义务的灵活性与主动权。
+1. 核心理念：隐私是权利，合规是能力
+PrivateDrop 建立在两个基本原则之上：
+隐私是默认权利：商业支付关系（如薪酬、顾问费）属于敏感商业机密，不应成为公开可分析的链上数据。贡献者的财务地址隐私应得到保护，免受骚扰、钓鱼或恶意挖角。
+合规是核心能力：合法的商业活动必须能够应要求向监管机构、审计方或内部合规部门提供无可辩驳的支付证明。这一能力必须由支付方自主掌握，而非依赖任何中心化第三方。
+因此，PrivateDrop 不提供“匿名”，而是提供 “可验证的关联切断” 和 “自主的审计工具”。
+2. 解决的核心痛点
+对项目方（支付方）：防止竞争对手通过分析链上支付流，轻易获取团队架构、薪酬水平、合作节奏等核心商业情报。
+对贡献者（收款方）：保护其常用收款地址的隐私，避免财务活动被全网公开监控，降低安全风险。
+对法律与合规：为支付方提供一套标准化、自动化且基于密码学证明的审计证据生成方案，超越传统截图或报表，满足日益严格的链上活动审查要求。
+3. 协议工作机制
+PrivateDrop 协议通过智能合约实现一个 “隐私保护支付池” 模型：
+存款创建：支付方一次性存入资金，并指定：
+自身为管理方。
+最多10名收款方及其可选额度。
+一个恢复地址用于紧急情况。
+所有设置均通过链下签名授权，不暴露支付方与收款方的直接链上关联。
+自主取款：收款方使用其私钥对取款指令进行签名，验证通过后直接从池中提款。链上仅记录“某地址从该支付池取款”，无法直接追溯至初始支付方。
+生命周期管理：管理方可以冻结资金、调整额度，并在所有支付完成后，选择清理该支付池的公开管理信息，进一步增强隐私。
+4. 核心创新：自主主权审计框架
+这是PrivateDrop区别于其他方案的灵魂。
+我们提供工具，而非数据。
+PrivateDrop 协议本身不运营、不存储、也无法提供任何中心化的审计报告。相反，我们提供一套开源的审计工具链（包括脚本与标准操作流程）。
+如何审计：支付方（管理方）使用其私钥对特定查询进行签名，即可通过工具链，独立、离线地生成与该支付池相关的完整交易报告。
+报告内容：该报告将重构出所有存款、取款事件的时间、金额、对应地址（以哈希形式保护隐私），并最终由支付方的私钥进行数字签名。
+法律效力：这份报告结合了区块链的不可篡改与数字签名的不可抵赖，构成了具备高度法律证明力的证据。支付方可以此向其所在的司法管辖区证明资金流向，履行合规义务。
+这一框架实现了责任的完美对齐： 负有法律报告义务的实体（支付方），正是唯一有能力且有必要生成审计证据的实体。
+5. 协议设计边界与重要警告
+为维护技术的纯粹性与合法性，我们必须明确边界：
+本协议是支付工具，非匿名化工具：其设计目标是为已知、可信的特定群体内的支付提供隐私保护。它不适合，也无法提供对抗专业链上分析或国家级调查的“匿名性”。
+禁止滥用警告：我们严格禁止并将技术设计上不鼓励将本协议用于：
+任何形式的洗钱、资助恐怖主义或欺诈活动。
+试图通过多次复杂转账（“套娃”）来故意制造不可追踪的资金路径。此类行为将极大增加使用者自身的法律风险，且使自主审计变得异常复杂，完全违背本协议初衷。
+风险自负：使用者应对其使用本协议进行的所有操作承担全部法律责任。PrivateDrop 作为中立的协议层，无法控制也无法知晓用户的具体行为与意图。
+6. 应用场景
+PrivateDrop 专为以下合法、合规的场景设计：
+DAO与加密货币项目：向全球匿名贡献者发放薪酬或奖金。
+传统企业：以加密货币向顾问、自由职业者支付服务费。
+家族办公室与资产管理：进行私密的资产分配与传承规划。
+跨境支付：在满足不同司法辖区要求的前提下，进行高效、低成本的结算。
+7. 对监管与未来的展望
+PrivateDrop 展现了一种与监管协同进化的可能性。我们呼吁监管机构关注这一范式转变：
+未来的合规重点，应从监控协议层，转向规范使用协议的法律实体；审计证据应从依赖平台报送，转向接受实体提供的密码学可验证报告。
+PrivateDrop 愿成为与监管机构、法律界和商业社会共同探索这一未来的桥梁，共同构建一个既尊重个人隐私权，又维护金融秩序与安全的可信数字金融环境。
+免责声明：PrivateDrop 协议是开源的、中立的底层技术。使用者必须自行确保其使用方式符合所在司法管辖区的所有法律法规。协议开发者对任何非法使用行为不承担任何责任。
+PrivateDrop：可审计隐私支付协议
+—— 为合法商业活动提供链上隐私与合规自证的下一代标准
+摘要
+在区块链技术重塑金融基础设施的时代，公开透明的账本在带来信任的同时，也暴露了商业支付活动的核心敏感信息。PrivateDrop 协议应运而生，旨在解决一个关键矛盾：如何在不可篡改的链上环境中，
+进行既保护商业机密与个人隐私，又能完全满足司法合规要求的支付？
+本协议提出并实现了一种全新的“自主主权审计”范式。我们不为“匿名”而设计，而为“可审计的隐私”而构建。通过将生成合规证据的能力与责任完整地交还给支付方（企业或组织），
+PrivateDrop 在协议层面确保了数据的绝对真实，又在应用层面赋予了支付方满足其特定法律义务的灵活性与主动权。
+1. 核心理念：隐私是权利，合规是能力
+PrivateDrop 建立在两个基本原则之上：
+隐私是默认权利：商业支付关系（如薪酬、顾问费）属于敏感商业机密，不应成为公开可分析的链上数据。贡献者的财务地址隐私应得到保护，免受骚扰、钓鱼或恶意挖角。
+合规是核心能力：合法的商业活动必须能够应要求向监管机构、审计方或内部合规部门提供无可辩驳的支付证明。这一能力必须由支付方自主掌握，而非依赖任何中心化第三方。
+因此，PrivateDrop 不提供“匿名”，而是提供 “可验证的关联切断” 和 “自主的审计工具”。
+2. 解决的核心痛点
+对项目方（支付方）：防止竞争对手通过分析链上支付流，轻易获取团队架构、薪酬水平、合作节奏等核心商业情报。
+对贡献者（收款方）：保护其常用收款地址的隐私，避免财务活动被全网公开监控，降低安全风险。
+对法律与合规：为支付方提供一套标准化、自动化且基于密码学证明的审计证据生成方案，超越传统截图或报表，满足日益严格的链上活动审查要求。
+3. 协议工作机制
+PrivateDrop 协议通过智能合约实现一个 “隐私保护支付池” 模型：
+存款创建：支付方一次性存入资金，并指定：
+自身为管理方。
+最多10名收款方及其可选额度。
+一个恢复地址用于紧急情况。
+所有设置均通过链下签名授权，不暴露支付方与收款方的直接链上关联。
+自主取款：收款方使用其私钥对取款指令进行签名，验证通过后直接从池中提款。链上仅记录“某地址从该支付池取款”，无法直接追溯至初始支付方。
+生命周期管理：管理方可以冻结资金、调整额度，并在所有支付完成后，选择清理该支付池的公开管理信息，进一步增强隐私。
+4. 核心创新：自主主权审计框架
+这是PrivateDrop区别于其他方案的灵魂。
+我们提供工具，而非数据。
+PrivateDrop 协议本身不运营、不存储、也无法提供任何中心化的审计报告。相反，我们提供一套开源的审计工具链（包括脚本与标准操作流程）。
+如何审计：支付方（管理方）使用其私钥对特定查询进行签名，即可通过工具链，独立、离线地生成与该支付池相关的完整交易报告。
+报告内容：该报告将重构出所有存款、取款事件的时间、金额、对应地址（以哈希形式保护隐私），并最终由支付方的私钥进行数字签名。
+法律效力：这份报告结合了区块链的不可篡改与数字签名的不可抵赖，构成了具备高度法律证明力的证据。支付方可以此向其所在的司法管辖区证明资金流向，履行合规义务。
+这一框架实现了责任的完美对齐： 负有法律报告义务的实体（支付方），正是唯一有能力且有必要生成审计证据的实体。
+5. 协议设计边界与重要警告
+为维护技术的纯粹性与合法性，我们必须明确边界：
+本协议是支付工具，非匿名化工具：其设计目标是为已知、可信的特定群体内的支付提供隐私保护。它不适合，也无法提供对抗专业链上分析或国家级调查的“匿名性”。
+禁止滥用警告：我们严格禁止并将技术设计上不鼓励将本协议用于：
+任何形式的洗钱、资助恐怖主义或欺诈活动。
+试图通过多次复杂转账（“套娃”）来故意制造不可追踪的资金路径。此类行为将极大增加使用者自身的法律风险，且使自主审计变得异常复杂，完全违背本协议初衷。
+风险自负：使用者应对其使用本协议进行的所有操作承担全部法律责任。PrivateDrop 作为中立的协议层，无法控制也无法知晓用户的具体行为与意图。
+6. 应用场景
+PrivateDrop 专为以下合法、合规的场景设计：
+DAO与加密货币项目：向全球匿名贡献者发放薪酬或奖金。
+传统企业：以加密货币向顾问、自由职业者支付服务费。
+家族办公室与资产管理：进行私密的资产分配与传承规划。
+跨境支付：在满足不同司法辖区要求的前提下，进行高效、低成本的结算。
+7. 对监管与未来的展望
+PrivateDrop 展现了一种与监管协同进化的可能性。我们呼吁监管机构关注这一范式转变：
+未来的合规重点，应从监控协议层，转向规范使用协议的法律实体；审计证据应从依赖平台报送，转向接受实体提供的密码学可验证报告。
+PrivateDrop 愿成为与监管机构、法律界和商业社会共同探索这一未来的桥梁，共同构建一个既尊重个人隐私权，又维护金融秩序与安全的可信数字金融环境。
+免责声明：PrivateDrop 协议是开源的、中立的底层技术。使用者必须自行确保其使用方式符合所在司法管辖区的所有法律法规。协议开发者对任何非法使用行为不承担任何责任。</pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 你把所有JS逻辑（签名、存款、取款、gas发送）全粘这里
+        // 为了长度我先省略，实际用的时候复制我之前给的JS代码进来
+
+        // 示例：实时计算手续费
+        document.getElementById("totalAmount")?.addEventListener("input", () => {
+            const total = parseFloat(document.getElementById("totalAmount").value) || 0;
+            document.getElementById("fee").innerText = (total * 0.01).toFixed(6);
+            document.getElementById("net").innerText = (total * 0.99).toFixed(6);
+        });
+
+        // addSpenderRow、deposit、checkAndWithdraw、sendGas 等函数全复制之前代码
+    </script>
+</body>
+</html>
