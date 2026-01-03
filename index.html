@@ -1,467 +1,1749 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>链上资金匿名分发协议</title>
+    <title>链上资金匿名分发协议 - PrivateDrop V17</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.ethers.io/lib/ethers-6.0.umd.min.js" type="text/javascript"></script>
     <style>
-        body { padding-top: 56px; background: #f8f9fa; }
-        .navbar-brand { font-weight: bold; }
-        .tab-content { padding: 30px; background: white; border-radius: 10px; margin-top: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .fire { color: #ff6b00; font-size: 1.2em; }
-        .warning { color: #dc3545; }
+        body { padding-top: 70px; background: #f0f2f5; }
+        .navbar-brand { font-weight: bold; font-size: 1.4rem; }
+        .tab-content { padding: 30px; background: white; border-radius: 10px; margin-top: 20px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .pool-card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f9f9f9; transition: all 0.3s; }
+        .pool-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .pool-card.owner { border-left: 4px solid #0d6efd; }
+        .pool-card.spender { border-left: 4px solid #198754; }
+        .fire { color: #ff4500; font-size: 1.2em; }
+        .warning { color: #dc3545; font-weight: bold; }
+        pre { background: #f1f1f1; padding: 20px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+        .connect-btn { margin-left: auto; }
+        table th { background: #e9ecef; }
+        .status-badge { font-size: 0.9em; padding: 4px 8px; border-radius: 4px; }
+        .status-normal { background: #d1e7dd; color: #0a3622; }
+        .status-frozen { background: #f8d7da; color: #58151c; }
+        .connected { background: #198754 !important; }
+        .disconnected { background: #6c757d !important; }
+        .detail-row { margin: 8px 0; }
+        .detail-label { font-weight: 600; color: #495057; }
+        .section-title { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand" href="#">链上资金匿名分发协议</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="nav nav-tabs ms-auto">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#deposit">存款分发</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#withdraw">取款</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#gas">发放Gas</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#docs">技术文档</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#whitepaper">白皮书</a></li>
-                </ul>
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">🔒 PrivateDrop V17</a>
+            <div class="d-flex align-items-center">
+                <span id="networkStatus" class="badge bg-secondary me-2"></span>
+                <span id="account" class="text-light me-3"></span>
+                <button id="connectBtn" class="btn btn-outline-light">连接钱包</button>
             </div>
         </div>
     </nav>
 
-    <div class="container tab-content">
-        <!-- 存款分发标签 -->
-        <div class="tab-pane fade show active" id="deposit">
-            <h2>存款并分发资金</h2>
-            <p class="text-muted">请严格遵守当地法律法规。本工具仅提供技术支持。</p>
+    <div class="container">
+        <ul class="nav nav-tabs mt-4" id="mainTab">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#deposit">💰 存款分发</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#myPools">📊 我的资金池</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#withdraw">💸 取款</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#manage">⚙️ 管理</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#gas">⛽ 发放Gas</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#docs">📖 技术文档</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#whitepaper">📄 白皮书</button></li>
+        </ul>
 
-            <div class="mb-3">
-                <label>合约地址</label>
-                <input type="text" class="form-control" id="dropContract" placeholder="PrivateDrop合约地址">
+        <div class="tab-content">
+            <!-- 存款分发 -->
+            <div class="tab-pane fade show active" id="deposit">
+                <h2 class="section-title">新建资金池</h2>
+                <div class="alert alert-warning">
+                    <strong>⚠️ 重要提示：</strong> 这是一个技术中立的隐私保护工具，请严格遵守当地法律法规。本合约仅用于合法的隐私保护需求。
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label"><strong>合约地址</strong></label>
+                        <input type="text" class="form-control" id="dropContract" value="0xCa83c7881f67Be1E0564B5098f15E34Ad2A1CE98" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><strong>Gas兑换合约</strong></label>
+                        <input type="text" class="form-control" id="gasContract" value="0xFc3D8B575fDdb2521175eb343073A23644951376" readonly>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-3">
+                    <div class="col-md-4">
+                        <label class="form-label"><strong>代币类型</strong></label>
+                        <select class="form-select" id="tokenType">
+                            <option value="native">原生币 (Base ETH)</option>
+                            <option value="usdt">USDT</option>
+                            <option value="usdc">USDC</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label"><strong>总存款金额</strong></label>
+                        <input type="text" class="form-control" id="totalAmount" placeholder="例如：1000">
+                        <small class="form-text text-muted">手续费(1%)：<span id="fee" class="text-primary fw-bold">0</span> | 净入金：<span id="net" class="text-success fw-bold">0</span></small>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label"><strong>Owner地址</strong>（管理权限）</label>
+                        <input type="text" class="form-control" id="ownerAddr" placeholder="你的冷钱包地址">
+                        <small class="form-text text-muted">拥有冻结、解冻、恢复、清理等管理权限</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label"><strong>Recovery地址</strong> <span class="fire">🔥</span>（紧急回收）</label>
+                        <input type="text" class="form-control" id="recoveryAddr" placeholder="紧急恢复地址（务必冷钱包）">
+                        <small class="form-text text-danger">此地址可一次性取回全部资金，务必妥善保管！</small>
+                    </div>
+                </div>
+
+                <h4 class="mt-4 section-title">取款人分配（最多10个）</h4>
+                <div class="alert alert-info mb-3">
+                    <strong>💡 取款人需要知道的信息：</strong>
+                    <ol class="mb-0 mt-2">
+                        <li><strong>资金池ID</strong> - 存款成功后会显示，务必记录并告知取款人</li>
+                        <li><strong>取款人序号</strong> - 按下方表格顺序，第一行是序号0，第二行是序号1，以此类推</li>
+                        <li><strong>取款人自己的私钥</strong> - 用于签名授权取款</li>
+                    </ol>
+                </div>
+                <table class="table table-bordered" id="spenderTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 80px;">序号</th>
+                            <th>取款地址</th>
+                            <th style="width: 200px;">限额（0=不限制）</th>
+                            <th style="width: 100px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge bg-secondary">0</span></td>
+                            <td><input type="text" class="form-control spenderAddr" placeholder="0x..."></td>
+                            <td><input type="number" class="form-control spenderLimit" value="0" step="0.000001"></td>
+                            <td><button class="btn btn-danger btn-sm" onclick="removeRow(this)">删除</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="btn btn-secondary mb-3" onclick="addRow()">+ 添加取款人</button>
+                <div class="mb-3">
+                    <strong>当前分配总和：</strong><span id="sumLimits" class="text-primary">0</span>
+                    <small class="text-muted">（不能超过净入金 <span id="netLimit">0</span>）</small>
+                </div>
+
+                <button class="btn btn-primary btn-lg" onclick="deposit()">🚀 创建资金池并存款</button>
+                <div id="depositStatus" class="mt-3"></div>
             </div>
-            <div class="mb-3">
-                <label>Gas兑换合约地址（可选）</label>
-                <input type="text" class="form-control" id="gasContract" placeholder="GasAutoSwap合约地址">
+
+            <!-- 我的资金池 -->
+            <div class="tab-pane fade" id="myPools">
+                <h2 class="section-title">我的资金池</h2>
+                <div class="mb-3">
+                    <button class="btn btn-info" onclick="scanMyPools()">🔄 刷新扫描</button>
+                    <small class="text-muted ms-2">连接钱包后点击刷新自动扫描所有资金池</small>
+                </div>
+                <div id="poolsList">
+                    <p class="text-muted text-center mt-5">连接钱包后点击"刷新扫描"查看你的资金池</p>
+                </div>
             </div>
 
-            <div class="mb-3">
-                <label>代币类型</label>
-                <select class="form-select" id="tokenType">
-                    <option value="native">原生币 (ETH/Base ETH)</option>
-                    <option value="usdt">USDT</option>
-                    <option value="usdc">USDC</option>
-                </select>
+            <!-- 取款 -->
+            <div class="tab-pane fade" id="withdraw">
+                <h2 class="section-title">取款操作</h2>
+                <div class="alert alert-info">
+                    <strong>💡 提示：</strong> 取款需要私钥签名授权。签名在本地完成，私钱包不会上传到任何服务器。
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">手动取款</h5>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>资金池ID</strong></label>
+                                <input type="number" class="form-control" id="withdrawPoolId" placeholder="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>取款人序号</strong></label>
+                                <input type="number" class="form-control" id="withdrawSpenderIndex" placeholder="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>取款金额</strong></label>
+                                <input type="text" class="form-control" id="withdrawAmount" placeholder="自动">
+                                <small class="text-muted">留空则取全部可用余额</small>
+                            </div>
+                        </div>
+                        <button class="btn btn-success mt-3" onclick="manualWithdraw()">💸 执行取款</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">我可以取款的资金池</h5>
+                        <button class="btn btn-info btn-sm mb-3" onclick="scanWithdrawable()">🔍 扫描可取款资金池</button>
+                        <div id="withdrawableList">
+                            <p class="text-muted">点击扫描查看可取款的资金池</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="withdrawStatus" class="mt-3"></div>
             </div>
 
-            <div class="mb-3">
-                <label>总存款金额</label>
-                <input type="text" class="form-control" id="totalAmount" placeholder="例如 1000">
-                <small>手续费1%：<span id="fee">0</span> | 净入金：<span id="net">0</span></small>
+            <!-- 管理 -->
+            <div class="tab-pane fade" id="manage">
+                <h2 class="section-title">资金池管理</h2>
+                <div class="alert alert-warning">
+                    <strong>⚠️ 管理操作说明：</strong>
+                    <ul class="mb-0 mt-2">
+                        <li><strong>冻结：</strong>暂停所有取款操作，紧急情况使用</li>
+                        <li><strong>解冻：</strong>恢复正常取款</li>
+                        <li><strong>恢复：</strong>将全部余额发送到Recovery地址，资金池将被冻结</li>
+                        <li><strong>清理：</strong>删除资金池记录（仅当余额为0且所有限额已达到时可用）</li>
+                    </ul>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">冻结/解冻资金池</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label"><strong>资金池ID</strong></label>
+                                <input type="number" class="form-control" id="freezePoolId" placeholder="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><strong>操作</strong></label>
+                                <div class="btn-group w-100" role="group">
+                                    <button class="btn btn-warning" onclick="freezePool()">❄️ 冻结</button>
+                                    <button class="btn btn-success" onclick="unfreezePool()">🔓 解冻</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-info btn-sm" onclick="testOwnership()">🔍 测试我的Owner身份（调试用）</button>
+                            <small class="text-muted ms-2">打开控制台(F12)查看详细信息</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">紧急恢复资金</h5>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label"><strong>资金池ID</strong></label>
+                                <input type="number" class="form-control" id="recoverPoolId" placeholder="0">
+                                <small class="text-danger">此操作将把全部余额发送到Recovery地址</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-danger w-100" onclick="recoverPool()">🚨 紧急恢复</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">清理资金池记录</h5>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label"><strong>资金池ID</strong></label>
+                                <input type="number" class="form-control" id="cleanPoolId" placeholder="0">
+                                <small class="text-muted">仅当余额为0且所有限额已达到时可清理</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-secondary w-100" onclick="cleanPool()">🗑️ 清理记录</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="manageStatus" class="mt-3"></div>
             </div>
 
-            <div class="mb-3">
-                <label>Owner地址（管理权限）</label>
-                <input type="text" class="form-control" id="ownerAddr" placeholder="你的冷钱包地址">
+            <!-- 发放Gas -->
+            <div class="tab-pane fade" id="gas">
+                <h2 class="section-title">发放Gas</h2>
+                <div class="alert alert-info">
+                    <strong>💡 功能说明：</strong> 使用USDT自动兑换ETH并发送到指定地址，方便为新地址提供Gas费用。单笔最多10 USDT。
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label"><strong>接收地址</strong></label>
+                                <input type="text" class="form-control" id="gasRecipient" placeholder="接收Gas的地址">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>USDT金额</strong></label>
+                                <input type="number" class="form-control" id="gasUsdtAmount" value="2" min="0.1" max="10" step="0.1">
+                            </div>
+                        </div>
+                        <button class="btn btn-warning btn-lg mt-3 w-100" onclick="sendGas()">⚡ 自动兑换并发送Gas</button>
+                    </div>
+                </div>
+
+                <div id="gasStatus" class="mt-3"></div>
             </div>
 
-            <div class="mb-3">
-                <label>Recovery地址 <span class="fire">🔥</span>（紧急回收，务必冷钱包）</label>
-                <input type="text" class="form-control" id="recoveryAddr" placeholder="保命地址">
+            <!-- 技术文档 -->
+            <div class="tab-pane fade" id="docs">
+                <h2 class="section-title">技术文档</h2>
+                
+                <div class="accordion" id="docsAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#overview">
+                                📋 合约概述
+                            </button>
+                        </h2>
+                        <div id="overview" class="accordion-collapse collapse show" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <h5>PrivateDropV17 - 链上资金匿名分发协议</h5>
+                                <p><strong>版本：</strong>1.7.0 | <strong>网络：</strong>Base主网 | <strong>许可证：</strong>MIT</p>
+                                <p>PrivateDropV17是一个非托管的链上资金分发协议。通过独立的存款池、链下签名授权与链上验证机制，实现存款人与取款人链上地址关联切断，同时保留完整的、可由存款人自主证明的资金流向记录。</p>
+                                
+                                <h6 class="mt-3">核心特性</h6>
+                                <ul>
+                                    <li><strong>地址关联切断：</strong>通过一次性存款建立独立资金池，取款地址与存款地址在链上无直接关联</li>
+                                    <li><strong>权限分层控制：</strong>三层权限体系 - 存款人(Owner)、取款人(Spender)、恢复地址(Recovery)</li>
+                                    <li><strong>签名验证机制：</strong>所有关键操作均需链下签名，操作可委托他人执行而不暴露私钥</li>
+                                    <li><strong>独立资金池：</strong>每个存款创建独立池，多用户资金完全隔离</li>
+                                    <li><strong>记录可清理：</strong>资金分配完毕后可主动清理链上关联记录</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#functions">
+                                🔧 核心函数说明
+                            </button>
+                        </h2>
+                        <div id="functions" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <h6>存款函数</h6>
+                                <pre><code>depositNative(address ownerAddress, address recoveryAddress, address[] spenderAddresses, uint256[] spenderLimits) payable
+depositERC20(address token, uint256 totalAmount, address ownerAddress, address recoveryAddress, address[] spenderAddresses, uint256[] spenderLimits)</code></pre>
+                                <p>创建资金池并存入资金。收取1%手续费，支持原生币和ERC20代币。</p>
+
+                                <h6 class="mt-3">取款函数</h6>
+                                <pre><code>withdraw(uint256 id, uint256 amount, uint256 spenderIndex, uint8 v, bytes32 r, bytes32 s)</code></pre>
+                                <p>取款人使用私钥签名后执行取款。签名在本地完成，防止重放攻击。</p>
+
+                                <h6 class="mt-3">管理函数</h6>
+                                <pre><code>freeze(uint256 id, uint8 v, bytes32 r, bytes32 s)  // 冻结资金池
+unfreeze(uint256 id, uint8 v, bytes32 r, bytes32 s)  // 解冻资金池
+recover(uint256 id, uint8 v, bytes32 r, bytes32 s)  // 紧急恢复全部资金
+cleanUpDeposit(uint256 id, uint8 v, bytes32 r, bytes32 s)  // 清理记录</code></pre>
+
+                                <h6 class="mt-3">查询函数</h6>
+                                <pre><code>queryAsSpender(uint256 id, uint256 spenderIndex) view  // 查询可取款余额
+queryOwnerBasic(uint256 id, uint8 v, bytes32 r, bytes32 s) view  // 查询资金池基本信息
+getDepositInfo(uint256 id) view  // 获取资金池公开信息</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#security">
+                                🔐 安全设计
+                            </button>
+                        </h2>
+                        <div id="security" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <h6>安全特性</h6>
+                                <ul>
+                                    <li><strong>非托管模式：</strong>合约永不掌握用户私钥，资金控制权始终属于用户</li>
+                                    <li><strong>多重验证：</strong>所有操作需对应权限的链下签名验证</li>
+                                    <li><strong>防重放攻击：</strong>Nonce递增机制确保每笔签名唯一</li>
+                                    <li><strong>紧急停止：</strong>部署者仅在发现合约重大漏洞时可全局暂停</li>
+                                    <li><strong>重入保护：</strong>使用OpenZeppelin的ReentrancyGuard</li>
+                                </ul>
+
+                                <h6 class="mt-3">使用建议</h6>
+                                <ul>
+                                    <li>Owner和Recovery地址务必使用冷钱包</li>
+                                    <li>取款人地址建议使用新生成的地址</li>
+                                    <li>定期检查资金池状态</li>
+                                    <li>谨慎使用恢复功能，这会冻结资金池</li>
+                                    <li>清理记录前确保所有资金已分配完毕</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#fees">
+                                💰 费用模型
+                            </button>
+                        </h2>
+                        <div id="fees" class="accordion-collapse collapse" data-bs-parent="#docsAccordion">
+                            <div class="accordion-body">
+                                <h6>收费标准</h6>
+                                <ul>
+                                    <li><strong>存款手续费：</strong>1%（仅存款时一次性收取）</li>
+                                    <li><strong>取款费用：</strong>0（仅需支付Gas费）</li>
+                                    <li><strong>管理操作：</strong>0（仅需支付Gas费）</li>
+                                </ul>
+
+                                <h6 class="mt-3">计算示例</h6>
+                                <p>存入1000 USDT：</p>
+                                <ul>
+                                    <li>手续费：10 USDT (1%)</li>
+                                    <li>净入金：990 USDT</li>
+                                    <li>可分配给取款人：990 USDT</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <h4>取款人分配（最多10个）</h4>
-            <table class="table" id="spenderTable">
-                <thead><tr><th>序号</th><th>取款地址</th><th>限额</th><th>操作</th></tr></thead>
-                <tbody></tbody>
-            </table>
-            <button class="btn btn-secondary" onclick="addSpenderRow()">+ 添加</button>
-            <p class="mt-2">当前分配总和：<span id="sumLimits">0</span>（不能超过净入金）</p>
+            <!-- 白皮书 -->
+            <div class="tab-pane fade" id="whitepaper">
+                <h2 class="section-title">PrivateDrop 白皮书</h2>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>摘要</h4>
+                        <p>PrivateDrop是一个基于区块链的隐私保护资金分发协议，通过智能合约实现存款人与取款人之间的地址关联切断，同时保持资金流向的可追溯性和透明度。该协议旨在为合法的商业活动提供隐私保护，而非用于任何非法目的。</p>
+                    </div>
+                </div>
 
-            <button class="btn btn-primary btn-lg mt-3" onclick="deposit()">创建资金池并存款</button>
-            <p id="depositStatus" class="mt-3"></p>
-        </div>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>1. 背景与动机</h4>
+                        
+                        <h6 class="mt-3">1.1 区块链隐私问题</h6>
+                        <p>区块链的透明性虽然带来了可追溯性，但也导致了隐私泄露问题。所有交易记录公开可查，使得商业机密、个人财务状况等敏感信息暴露在公众视野中。</p>
 
-        <!-- 取款标签 -->
-        <div class="tab-pane fade" id="withdraw">
-            <h2>取款</h2>
-            <input type="text" class="form-control mb-3" id="withdrawContract" placeholder="合约地址">
-            <input type="text" class="form-control mb-3" id="withdrawId" placeholder="资金池ID">
-            <input type="text" class="form-control mb-3" id="withdrawIndex" placeholder="你的序号 (0-9)">
-            <button class="btn btn-success btn-lg" onclick="checkAndWithdraw()">查询并一键取款</button>
-            <p id="withdrawStatus" class="mt-3"></p>
-            <p id="remainingInfo" class="mt-3"></p>
-        </div>
+                        <h6 class="mt-3">1.2 合法隐私需求</h6>
+                        <p>在遵守法律法规的前提下，许多合法商业活动需要隐私保护：</p>
+                        <ul>
+                            <li>项目方向匿名团队成员发放报酬，保护团队隐私</li>
+                            <li>企业向外部顾问支付咨询费用，避免商业策略泄露</li>
+                            <li>个人资产传承规划，保护家庭财务隐私</li>
+                            <li>跨境合规转账，同时保护商业秘密</li>
+                        </ul>
 
-        <!-- 发放Gas标签 -->
-        <div class="tab-pane fade" id="gas">
-            <h2>发放Gas（单笔最多10 USDT）</h2>
-            <input type="text" class="form-control mb-3" id="gasSwapContract" placeholder="GasAutoSwap合约地址">
-            <input type="text" class="form-control mb-3" id="gasRecipient" placeholder="小弟马甲地址">
-            <input type="text" class="form-control mb-3" id="gasUsdtAmount" value="2" placeholder="USDT金额 (最多10)">
-            <button class="btn btn-warning btn-lg" onclick="sendGas()">自动兑换并发送Gas</button>
-            <p id="gasStatus" class="mt-3"></p>
-        </div>
+                        <h6 class="mt-3">1.3 现有方案的局限</h6>
+                        <ul>
+                            <li><strong>混币器：</strong>容易被用于非法活动，监管风险高</li>
+                            <li><strong>隐私币：</strong>交易所支持度低，流动性差</li>
+                            <li><strong>多签钱包：</strong>仍可追踪资金流向</li>
+                        </ul>
+                    </div>
+                </div>
 
-        <!-- 技术文档标签 -->
-        <div class="tab-pane fade" id="docs">
-            <h2>PrivateDropV17 技术参考文档</h2>
-            <pre>版本： 1.7.0
-网络： 暂只支持base网络（因为gas低流动性也还不错）
-许可证： MIT
-1. 合约概述
-PrivateDropV17 是一个非托管的链上资金分发协议。其核心是通过独立的存款池、链下签名授权与链上验证机制，在实现存款人与取款人链上地址关联切断的同时，
-保留完整的、可由存款人自主证明的资金流向记录。
-2. 核心数据结构
-solidity
-struct Spender {
-    address spenderAddress; // 取款人地址
-    uint256 limit;          // 可取款总额度 (0 表示无额度限制，可提取池内全部余额)
-    uint256 withdrawn;      // 已取款金额
-    uint256 nonce;          // 签名随机数，防重放
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>2. 技术方案</h4>
+
+                        <h6 class="mt-3">2.1 核心设计理念</h6>
+                        <p>PrivateDrop采用"独立资金池 + 链下签名"的设计思路：</p>
+                        <ol>
+                            <li><strong>地址隔离：</strong>存款地址与取款地址没有直接的链上转账关系</li>
+                            <li><strong>签名授权：</strong>所有操作通过链下签名授权，私钥永不触网</li>
+                            <li><strong>可追溯性：</strong>存款人可通过资金池ID证明资金流向</li>
+                            <li><strong>记录清理：</strong>资金分配完成后可选择性清理链上记录</li>
+                        </ol>
+
+                        <h6 class="mt-3">2.2 数据结构</h6>
+                        <pre><code>struct Spender {
+    address spenderAddress;  // 取款人地址
+    uint256 limit;           // 可取款总额度(0=不限制)
+    uint256 withdrawn;       // 已取款金额
+    uint256 nonce;           // 签名随机数
 }
 
 struct Deposit {
-    address token;          // 资产地址，address(0) 代表原生代币 (ETH/BNB等)
-    uint256 balance;        // 资金池当前余额
-    address ownerAddress;   // 存款人/管理员地址
-    address recoveryAddress;// 紧急恢复地址
-    bool frozen;            // 资金池冻结状态
-    uint256 ownerNonce;     // 存款人操作随机数，防重放
-    Spender[] spenders;     // 取款人列表
-}
-3. 状态变量与常量
-
-feeWallet	address payable	协议手续费接收地址。可由合约所有者更新。
-owner	address	合约部署者地址，拥有紧急停止和更新feeWallet的权限。
-emergencyStop	bool	全局紧急开关。为 true 时，除query外的所有用户函数暂停。
-deposits	Deposit[]	存储所有存款池的数组。存款池ID即其在此数组中的索引。
-FEE_RATE	uint256	手续费率，固定为 300 (即 3%，基数 10000)。
-MAX_SPENDERS	uint256	单个资金池最大取款人数，固定为 10。
-4. 函数详解
-
-4.1 合约管理函数 (仅 owner 可调用)
-
-updateFeeWallet(address payable newFeeWallet)
-
-功能：更新协议手续费接收地址。
-
-前置条件：newFeeWallet 不能为零地址。
-
-触发事件：FeeWalletUpdated
-
-toggleEmergencyStop(bool stop)
-
-功能：设置或解除全局紧急停止状态。
-
-触发事件：EmergencyStopToggled
-
-4.2 存款函数
-
-depositNative(address ownerAddress, address recoveryAddress, address[] calldata spenderAddresses, uint256[] calldata spenderLimits) payable
-
-功能：使用原生代币（如ETH）创建存款池。
-
-参数：
-
-ownerAddress：存款人地址，拥有管理权。
-
-recoveryAddress：紧急恢复地址。
-
-spenderAddresses：取款人地址数组。
-
-spenderLimits：对应取款人的额度数组。
-
-前置条件：
-
-msg.value > 0.01 ether。
-
-参数数组长度匹配且介于1到MAX_SPENDERS之间。
-
-所有地址非零。
-
-内部操作：
-
-计算手续费 (msg.value * FEE_RATE / 10000) 并发送至feeWallet。
-
-将剩余资金存入新创建的Deposit结构体。
-
-触发事件：Deposited
-
-depositERC20(address token, uint256 totalAmount, address ownerAddress, address recoveryAddress, address[] calldata spenderAddresses, uint256[] calldata spenderLimits)
-
-功能：使用ERC20代币创建存款池。
-
-参数：比depositNative多一个token（代币地址）和totalAmount（存款总额）。
-
-前置条件：
-
-token != address(0)。
-
-totalAmount > 0。
-
-其他条件同depositNative。
-
-内部操作：
-
-从调用者转移totalAmount的代币至合约。
-
-计算手续费并转移至feeWallet。
-
-创建存款池。
-
-触发事件：Deposited
-
-4.3 取款与核心操作函数
-
-withdraw(uint256 id, uint256 amount, uint256 spenderIndex, uint8 v, bytes32 r, bytes32 s)
-
-功能：取款人从指定存款池中提取资金。
-
-签名消息：keccak256(abi.encode(id, amount, spenderIndex, nonce, block.chainid, address(this)))
-
-验证流程：
-
-检查资金池未冻结。
-
-使用ecrecover验证签名与spenderAddress匹配。
-
-检查取款金额未超过其剩余额度（若有）及资金池余额。
-
-状态更新：
-
-资金池余额减少。
-
-对应Spender的withdrawn增加，nonce递增。
-
-资金转移：向msg.sender（必须为取款人本人）转账。
-
-触发事件：Withdrawn
-
-freeze(uint256 id, uint8 v, bytes32 r, bytes32 s)
-
-功能：存款人冻结资金池，禁止所有取款。
-
-签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“freeze”, ownerNonce)), block.chainid, address(this)))
-
-状态更新：Deposit.frozen = true，ownerNonce++。
-
-触发事件：Frozen
-
-unfreeze(uint256 id, uint8 v, bytes32 r, bytes32 s)
-
-功能：存款人解冻资金池。
-
-逻辑：同freeze，消息中动作字符串为”unfreeze”。
-
-状态更新：Deposit.frozen = false，ownerNonce++。
-
-触发事件：Unfrozen
-
-recover(uint256 id, uint8 v, bytes32 r, bytes32 s)
-
-功能：紧急恢复。由recoveryAddress调用，在存款人签名授权后，一次性将资金池全部剩余余额转至恢复地址，并冻结该池。
-
-签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“recover”, ownerNonce)), block.chainid, address(this)))
-
-状态更新：资金池余额归零，并冻结。
-
-触发事件：Recovered
-
-cleanUpDeposit(uint256 id, uint8 v, bytes32 r, bytes32 s)
-
-功能：存款人在资金全部分配完毕后，清理资金池的关联记录，增强隐私。
-
-前置条件：
-
-资金池余额为0。
-
-所有设定了额度的取款人，其withdrawn必须达到limit。
-
-状态更新：
-
-ownerAddress 和 recoveryAddress 设置为 address(0)。
-
-清空 spenders 数组。
-
-重要提示：此操作仅清除合约存储中的可见信息，无法删除已发生的链上事件日志(Deposited, Withdrawn等)。
-
-触发事件：DepositCleaned
-
-4.4 查询函数
-
-queryAsSpender(uint256 id, uint256 spenderIndex) → (uint256 myRemaining, uint256 totalBalance, address storedSpenderAddress, address token) view
-
-功能：取款人查询自己的剩余额度、资金池总余额、合约中存储的自身地址及资产类型。
-
-权限：无限制，公开查询。
-
-queryOwnerBasic(uint256 id, uint8 v, bytes32 r, bytes32 s) → (uint256 balance, bool frozen, address recoveryAddress, address ownerAddress, uint256 ownerNonce, address token) view
-
-功能：存款人签名后，查询资金池的基本状态信息。
-
-签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“queryBasic”)), block.chainid, address(this)))
-
-queryOwnerSpenders(uint256 id, uint8 v, bytes32 r, bytes32 s) → (uint256[] memory limits, uint256[] memory withdrawns, uint256[] memory remainings, address[] memory spenderAddrs) view
-
-功能：存款人签名后，查询所有取款人的详细额度与取款情况。
-
-签名消息：keccak256(abi.encode(id, keccak256(abi.encode(“querySpenders”)), block.chainid, address(this)))
-
-getDepositInfo(uint256 id) → (address token, uint256 balance, bool frozen, uint256 spenderCount, bool stopped) view
-
-功能：任何人可查询资金池的公开概要信息及合约全局状态。
-5. 事件列表
-Deposited	(id, token, totalAmount, netAmount)	存款池创建成功
-Withdrawn	(id, token, amount, to)	取款成功
-Frozen	(id)	资金池被冻结
-Unfrozen	(id)	资金池被解冻
-Recovered	(id, token, amount, to)	紧急恢复被执行
-DepositCleaned	(id)	资金池记录被清理
-FeeWalletUpdated	(oldWallet, newWallet)	手续费地址更新
-EmergencyStopToggled	(stopped)	紧急状态切换
-6. 安全要点与开发者说明
-签名安全：所有签名必须在可信的离线环境中生成。前端应使用 eth_signTypedData_v4 以提升用户体验和安全。
-
-Nonce管理：Spender.nonce 和 Deposit.ownerNonce 在每次成功签名后递增，确保同一签名无法重复使用。
-
-隐私限制：cleanUpDeposit 功能仅提供存储层面的隐私增强。完整的交易历史仍可通过区块链浏览器查询相关事件日志进行重构。
-
-Gas预留：取款人(Spender)在执行 withdraw 前，必须确保其地址有足够支付交易Gas费的网络原生代币。
-
-不可升级性：合约未设置代理模式，部署后逻辑不可更改。所有交互需基于已验证的ABI。
-文档版本： 1.0
-最后更新： 2026-01-01
-此文档仅为技术参考，不构成法律或财务建议。部署和使用前，请务必进行独立审计并遵守相关法律法规。</pre>
-        </div>
-
-        <!-- 白皮书标签 -->
-        <div class="tab-pane fade" id="whitepaper">
-            <h2>PrivateDrop：可审计隐私支付协议</h2>
-            <p>本协议提供一种技术中立的链上资金管理工具，旨在为合法商业活动提供隐私保护。</p>
-            <p>核心原则：非托管、多重签名、独立隔离、记录可清理。</p>
-            <p>请严格遵守您所在司法管辖区的法律法规。</p>
-            <p>版本：1.7.0 | 更新日期：2026年1月</p>
-<pre>—— 为合法商业活动提供链上隐私与合规自证的下一代标准
-摘要
-在区块链技术重塑金融基础设施的时代，公开透明的账本在带来信任的同时，也暴露了商业支付活动的核心敏感信息。PrivateDrop 协议应运而生，旨在解决一个关键矛盾：如何在不可篡改的链上环境中
-，进行既保护商业机密与个人隐私，又能完全满足司法合规要求的支付？
-本协议提出并实现了一种全新的“自主主权审计”范式。我们不为“匿名”而设计，而为“可审计的隐私”而构建。通过将生成合规证据的能力与责任完整地交还给支付方（企业或组织），
-PrivateDrop 在协议层面确保了数据的绝对真实，又在应用层面赋予了支付方满足其特定法律义务的灵活性与主动权。
-1. 核心理念：隐私是权利，合规是能力
-PrivateDrop 建立在两个基本原则之上：
-隐私是默认权利：商业支付关系（如薪酬、顾问费）属于敏感商业机密，不应成为公开可分析的链上数据。贡献者的财务地址隐私应得到保护，免受骚扰、钓鱼或恶意挖角。
-合规是核心能力：合法的商业活动必须能够应要求向监管机构、审计方或内部合规部门提供无可辩驳的支付证明。这一能力必须由支付方自主掌握，而非依赖任何中心化第三方。
-因此，PrivateDrop 不提供“匿名”，而是提供 “可验证的关联切断” 和 “自主的审计工具”。
-2. 解决的核心痛点
-对项目方（支付方）：防止竞争对手通过分析链上支付流，轻易获取团队架构、薪酬水平、合作节奏等核心商业情报。
-对贡献者（收款方）：保护其常用收款地址的隐私，避免财务活动被全网公开监控，降低安全风险。
-对法律与合规：为支付方提供一套标准化、自动化且基于密码学证明的审计证据生成方案，超越传统截图或报表，满足日益严格的链上活动审查要求。
-3. 协议工作机制
-PrivateDrop 协议通过智能合约实现一个 “隐私保护支付池” 模型：
-存款创建：支付方一次性存入资金，并指定：
-自身为管理方。
-最多10名收款方及其可选额度。
-一个恢复地址用于紧急情况。
-所有设置均通过链下签名授权，不暴露支付方与收款方的直接链上关联。
-自主取款：收款方使用其私钥对取款指令进行签名，验证通过后直接从池中提款。链上仅记录“某地址从该支付池取款”，无法直接追溯至初始支付方。
-生命周期管理：管理方可以冻结资金、调整额度，并在所有支付完成后，选择清理该支付池的公开管理信息，进一步增强隐私。
-4. 核心创新：自主主权审计框架
-这是PrivateDrop区别于其他方案的灵魂。
-我们提供工具，而非数据。
-PrivateDrop 协议本身不运营、不存储、也无法提供任何中心化的审计报告。相反，我们提供一套开源的审计工具链（包括脚本与标准操作流程）。
-如何审计：支付方（管理方）使用其私钥对特定查询进行签名，即可通过工具链，独立、离线地生成与该支付池相关的完整交易报告。
-报告内容：该报告将重构出所有存款、取款事件的时间、金额、对应地址（以哈希形式保护隐私），并最终由支付方的私钥进行数字签名。
-法律效力：这份报告结合了区块链的不可篡改与数字签名的不可抵赖，构成了具备高度法律证明力的证据。支付方可以此向其所在的司法管辖区证明资金流向，履行合规义务。
-这一框架实现了责任的完美对齐： 负有法律报告义务的实体（支付方），正是唯一有能力且有必要生成审计证据的实体。
-5. 协议设计边界与重要警告
-为维护技术的纯粹性与合法性，我们必须明确边界：
-本协议是支付工具，非匿名化工具：其设计目标是为已知、可信的特定群体内的支付提供隐私保护。它不适合，也无法提供对抗专业链上分析或国家级调查的“匿名性”。
-禁止滥用警告：我们严格禁止并将技术设计上不鼓励将本协议用于：
-任何形式的洗钱、资助恐怖主义或欺诈活动。
-试图通过多次复杂转账（“套娃”）来故意制造不可追踪的资金路径。此类行为将极大增加使用者自身的法律风险，且使自主审计变得异常复杂，完全违背本协议初衷。
-风险自负：使用者应对其使用本协议进行的所有操作承担全部法律责任。PrivateDrop 作为中立的协议层，无法控制也无法知晓用户的具体行为与意图。
-6. 应用场景
-PrivateDrop 专为以下合法、合规的场景设计：
-DAO与加密货币项目：向全球匿名贡献者发放薪酬或奖金。
-传统企业：以加密货币向顾问、自由职业者支付服务费。
-家族办公室与资产管理：进行私密的资产分配与传承规划。
-跨境支付：在满足不同司法辖区要求的前提下，进行高效、低成本的结算。
-7. 对监管与未来的展望
-PrivateDrop 展现了一种与监管协同进化的可能性。我们呼吁监管机构关注这一范式转变：
-未来的合规重点，应从监控协议层，转向规范使用协议的法律实体；审计证据应从依赖平台报送，转向接受实体提供的密码学可验证报告。
-PrivateDrop 愿成为与监管机构、法律界和商业社会共同探索这一未来的桥梁，共同构建一个既尊重个人隐私权，又维护金融秩序与安全的可信数字金融环境。
-免责声明：PrivateDrop 协议是开源的、中立的底层技术。使用者必须自行确保其使用方式符合所在司法管辖区的所有法律法规。协议开发者对任何非法使用行为不承担任何责任。
-PrivateDrop：可审计隐私支付协议
-—— 为合法商业活动提供链上隐私与合规自证的下一代标准
-摘要
-在区块链技术重塑金融基础设施的时代，公开透明的账本在带来信任的同时，也暴露了商业支付活动的核心敏感信息。PrivateDrop 协议应运而生，旨在解决一个关键矛盾：如何在不可篡改的链上环境中，
-进行既保护商业机密与个人隐私，又能完全满足司法合规要求的支付？
-本协议提出并实现了一种全新的“自主主权审计”范式。我们不为“匿名”而设计，而为“可审计的隐私”而构建。通过将生成合规证据的能力与责任完整地交还给支付方（企业或组织），
-PrivateDrop 在协议层面确保了数据的绝对真实，又在应用层面赋予了支付方满足其特定法律义务的灵活性与主动权。
-1. 核心理念：隐私是权利，合规是能力
-PrivateDrop 建立在两个基本原则之上：
-隐私是默认权利：商业支付关系（如薪酬、顾问费）属于敏感商业机密，不应成为公开可分析的链上数据。贡献者的财务地址隐私应得到保护，免受骚扰、钓鱼或恶意挖角。
-合规是核心能力：合法的商业活动必须能够应要求向监管机构、审计方或内部合规部门提供无可辩驳的支付证明。这一能力必须由支付方自主掌握，而非依赖任何中心化第三方。
-因此，PrivateDrop 不提供“匿名”，而是提供 “可验证的关联切断” 和 “自主的审计工具”。
-2. 解决的核心痛点
-对项目方（支付方）：防止竞争对手通过分析链上支付流，轻易获取团队架构、薪酬水平、合作节奏等核心商业情报。
-对贡献者（收款方）：保护其常用收款地址的隐私，避免财务活动被全网公开监控，降低安全风险。
-对法律与合规：为支付方提供一套标准化、自动化且基于密码学证明的审计证据生成方案，超越传统截图或报表，满足日益严格的链上活动审查要求。
-3. 协议工作机制
-PrivateDrop 协议通过智能合约实现一个 “隐私保护支付池” 模型：
-存款创建：支付方一次性存入资金，并指定：
-自身为管理方。
-最多10名收款方及其可选额度。
-一个恢复地址用于紧急情况。
-所有设置均通过链下签名授权，不暴露支付方与收款方的直接链上关联。
-自主取款：收款方使用其私钥对取款指令进行签名，验证通过后直接从池中提款。链上仅记录“某地址从该支付池取款”，无法直接追溯至初始支付方。
-生命周期管理：管理方可以冻结资金、调整额度，并在所有支付完成后，选择清理该支付池的公开管理信息，进一步增强隐私。
-4. 核心创新：自主主权审计框架
-这是PrivateDrop区别于其他方案的灵魂。
-我们提供工具，而非数据。
-PrivateDrop 协议本身不运营、不存储、也无法提供任何中心化的审计报告。相反，我们提供一套开源的审计工具链（包括脚本与标准操作流程）。
-如何审计：支付方（管理方）使用其私钥对特定查询进行签名，即可通过工具链，独立、离线地生成与该支付池相关的完整交易报告。
-报告内容：该报告将重构出所有存款、取款事件的时间、金额、对应地址（以哈希形式保护隐私），并最终由支付方的私钥进行数字签名。
-法律效力：这份报告结合了区块链的不可篡改与数字签名的不可抵赖，构成了具备高度法律证明力的证据。支付方可以此向其所在的司法管辖区证明资金流向，履行合规义务。
-这一框架实现了责任的完美对齐： 负有法律报告义务的实体（支付方），正是唯一有能力且有必要生成审计证据的实体。
-5. 协议设计边界与重要警告
-为维护技术的纯粹性与合法性，我们必须明确边界：
-本协议是支付工具，非匿名化工具：其设计目标是为已知、可信的特定群体内的支付提供隐私保护。它不适合，也无法提供对抗专业链上分析或国家级调查的“匿名性”。
-禁止滥用警告：我们严格禁止并将技术设计上不鼓励将本协议用于：
-任何形式的洗钱、资助恐怖主义或欺诈活动。
-试图通过多次复杂转账（“套娃”）来故意制造不可追踪的资金路径。此类行为将极大增加使用者自身的法律风险，且使自主审计变得异常复杂，完全违背本协议初衷。
-风险自负：使用者应对其使用本协议进行的所有操作承担全部法律责任。PrivateDrop 作为中立的协议层，无法控制也无法知晓用户的具体行为与意图。
-6. 应用场景
-PrivateDrop 专为以下合法、合规的场景设计：
-DAO与加密货币项目：向全球匿名贡献者发放薪酬或奖金。
-传统企业：以加密货币向顾问、自由职业者支付服务费。
-家族办公室与资产管理：进行私密的资产分配与传承规划。
-跨境支付：在满足不同司法辖区要求的前提下，进行高效、低成本的结算。
-7. 对监管与未来的展望
-PrivateDrop 展现了一种与监管协同进化的可能性。我们呼吁监管机构关注这一范式转变：
-未来的合规重点，应从监控协议层，转向规范使用协议的法律实体；审计证据应从依赖平台报送，转向接受实体提供的密码学可验证报告。
-PrivateDrop 愿成为与监管机构、法律界和商业社会共同探索这一未来的桥梁，共同构建一个既尊重个人隐私权，又维护金融秩序与安全的可信数字金融环境。
-免责声明：PrivateDrop 协议是开源的、中立的底层技术。使用者必须自行确保其使用方式符合所在司法管辖区的所有法律法规。协议开发者对任何非法使用行为不承担任何责任。</pre>
+    address token;            // 资产地址
+    uint256 balance;          // 当前余额
+    address ownerAddress;     // 管理员地址
+    address recoveryAddress;  // 紧急恢复地址
+    bool frozen;              // 冻结状态
+    uint256 ownerNonce;       // Owner操作随机数
+    Spender[] spenders;       // 取款人列表
+}</code></pre>
+
+                        <h6 class="mt-3">2.3 权限体系</h6>
+                        <ul>
+                            <li><strong>Owner（存款人）：</strong>冻结/解冻资金池、触发恢复、清理记录</li>
+                            <li><strong>Spender（取款人）：</strong>在限额内取款</li>
+                            <li><strong>Recovery（恢复地址）：</strong>接收紧急恢复的全部资金</li>
+                        </ul>
+
+                        <h6 class="mt-3">2.4 签名验证机制</h6>
+                        <p>所有关键操作需要对应权限的ECDSA签名：</p>
+                        <pre><code>// 取款签名
+keccak256(id, amount, spenderIndex, nonce, chainId, contractAddress)
+
+// Owner操作签名  
+keccak256(id, actionHash, chainId, contractAddress)</code></pre>
+
+                        <h6 class="mt-3">2.5 防重放攻击</h6>
+                        <p>每个取款人和Owner都有独立的nonce计数器，确保签名不可重复使用。</p>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>3. 使用流程</h4>
+
+                        <h6 class="mt-3">3.1 创建资金池</h6>
+                        <ol>
+                            <li>Owner调用<code>depositNative</code>或<code>depositERC20</code>存入资金</li>
+                            <li>指定Owner地址、Recovery地址、取款人列表和限额</li>
+                            <li>合约收取1%手续费，创建独立资金池</li>
+                            <li>返回资金池ID</li>
+                        </ol>
+
+                        <h6 class="mt-3">3.2 取款流程</h6>
+                        <ol>
+                            <li>取款人使用私钥对取款信息签名</li>
+                            <li>可委托他人提交签名到链上</li>
+                            <li>合约验证签名和限额</li>
+                            <li>转账成功，更新状态</li>
+                        </ol>
+
+                        <h6 class="mt-3">3.3 管理操作</h6>
+                        <ul>
+                            <li><strong>冻结：</strong>紧急情况下暂停所有取款</li>
+                            <li><strong>恢复：</strong>将全部余额发送到Recovery地址</li>
+                            <li><strong>清理：</strong>余额为0时删除链上记录</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>4. 隐私分析</h4>
+
+                        <h6 class="mt-3">4.1 隐私保护机制</h6>
+                        <ul>
+                            <li><strong>地址隔离：</strong>存款地址A → 资金池 → 取款地址B，A和B无直接关联</li>
+                            <li><strong>批量创建：</strong>一次存款可分配给多个取款人</li>
+                            <li><strong>时间差：</strong>存款和取款可间隔任意时间</li>
+                            <li><strong>记录清理：</strong>完成分配后可选择清理链上记录</li>
+                        </ul>
+
+                        <h6 class="mt-3">4.2 可追溯性</h6>
+                        <p>存款人持有资金池ID，可向监管机构证明资金流向，确保合规性。</p>
+
+                        <h6 class="mt-3">4.3 隐私增强建议</h6>
+                        <ul>
+                            <li>使用新生成的地址作为取款地址</li>
+                            <li>分批次分时间取款</li>
+                            <li>取款后再转移到常用地址</li>
+                            <li>完成后清理链上记录</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>5. 安全性分析</h4>
+
+                        <h6 class="mt-3">5.1 智能合约安全</h6>
+                        <ul>
+                            <li>使用OpenZeppelin标准库</li>
+                            <li>ReentrancyGuard防重入攻击</li>
+                            <li>SafeERC20安全转账</li>
+                            <li>完整的权限验证</li>
+                        </ul>
+
+                        <h6 class="mt-3">5.2 签名安全</h6>
+                        <ul>
+                            <li>ECDSA签名标准</li>
+                            <li>Nonce防重放</li>
+                            <li>包含chainId防跨链攻击</li>
+                            <li>私钥永不上链</li>
+                        </ul>
+
+                        <h6 class="mt-3">5.3 经济安全</h6>
+                        <ul>
+                            <li>资金完全隔离，不存在资金池互相影响</li>
+                            <li>紧急停止机制应对重大漏洞</li>
+                            <li>Recovery地址作为最后保障</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>6. 应用场景</h4>
+
+                        <h6 class="mt-3">6.1 项目方团队激励</h6>
+                        <p>匿名团队成员不便暴露身份，通过PrivateDrop可以隐私地接收报酬。</p>
+
+                        <h6 class="mt-3">6.2 企业顾问费用支付</h6>
+                        <p>企业聘请外部顾问，避免顾问名单和金额被竞争对手获取。</p>
+
+                        <h6 class="mt-3">6.3 个人资产传承</h6>
+                        <p>提前设置Recovery地址为继承人，确保资产可安全传承。</p>
+
+                        <h6 class="mt-3">6.4 跨境合规转账</h6>
+                        <p>在遵守当地法规的前提下，保护商业机密和个人隐私。</p>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>7. 合规性声明</h4>
+                        
+                        <div class="alert alert-danger">
+                            <h6>⚠️ 重要法律声明</h6>
+                            <ul class="mb-0">
+                                <li>PrivateDrop是技术中立的隐私保护工具</li>
+                                <li>用户必须遵守所在司法管辖区的所有法律法规</li>
+                                <li>禁止将本协议用于洗钱、资助恐怖主义或任何非法活动</li>
+                                <li>使用者对其行为承担全部法律责任</li>
+                                <li>开发团队保留配合执法部门调查的权利</li>
+                            </ul>
+                        </div>
+
+                        <h6 class="mt-3">7.1 隐私vs违法的界限</h6>
+                        <ul>
+                            <li><strong>合法隐私：</strong>保护商业机密、个人财务隐私</li>
+                            <li><strong>非法行为：</strong>隐藏犯罪所得、逃避税收、资助犯罪</li>
+                        </ul>
+
+                        <h6 class="mt-3">7.2 用户责任</h6>
+                        <ul>
+                            <li>了解并遵守当地法律</li>
+                            <li>保留必要的交易记录</li>
+                            <li>配合合法的监管要求</li>
+                            <li>不将工具用于非法目的</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h4>8. 未来发展</h4>
+
+                        <h6 class="mt-3">8.1 功能扩展</h6>
+                        <ul>
+                            <li>支持更多公链网络</li>
+                            <li>增加自动定时分发功能</li>
+                            <li>支持NFT资产分发</li>
+                            <li>集成DeFi协议生息</li>
+                        </ul>
+
+                        <h6 class="mt-3">8.2 隐私增强</h6>
+                        <ul>
+                            <li>零知识证明技术集成</li>
+                            <li>更灵活的记录清理机制</li>
+                            <li>链下计算优化Gas成本</li>
+                        </ul>
+
+                        <h6 class="mt-3">8.3 合规工具</h6>
+                        <ul>
+                            <li>可选的KYC集成</li>
+                            <li>交易报告生成工具</li>
+                            <li>监管接口预留</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h4>9. 总结</h4>
+                        <p>PrivateDrop协议在保护合法隐私需求与维护区块链透明性之间找到了平衡点。通过独立资金池和链下签名机制，实现了地址关联的切断，同时保留了资金流向的可追溯性。</p>
+                        <p>我们坚信，隐私是基本人权，但隐私保护不应成为违法犯罪的遮羞布。PrivateDrop致力于为合法的商业活动和个人需求提供隐私保护，同时坚决反对任何形式的违法使用。</p>
+                        <p class="mb-0"><strong>技术中立，用途合法，责任自负。</strong></p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // 你把所有JS逻辑（签名、存款、取款、gas发送）全粘这里
-        // 为了长度我先省略，实际用的时候复制我之前给的JS代码进来
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container text-center">
+            <p class="mb-2">PrivateDrop V17 - 链上资金匿名分发协议</p>
+            <p class="mb-0 text-muted small">技术中立工具 | 请遵守当地法律法规 | MIT License</p>
+        </div>
+    </footer>
 
-        // 示例：实时计算手续费
-        document.getElementById("totalAmount")?.addEventListener("input", () => {
-            const total = parseFloat(document.getElementById("totalAmount").value) || 0;
-            document.getElementById("fee").innerText = (total * 0.01).toFixed(6);
-            document.getElementById("net").innerText = (total * 0.99).toFixed(6);
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Ethers.js 6.13.1 稳定版（Cloudflare CDN） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"></script>
+    
+    <script>
+        // ⚠️ 检查 ethers.js 是否加载
+        if (typeof ethers === 'undefined') {
+            console.error('❌ Ethers.js 加载失败，请刷新页面或检查网络');
+            alert('⚠️ 库加载失败，请刷新页面重试');
+        }
+        
+        const DROP_ADDRESS = "0xCa83c7881f67Be1E0564B5098f15E34Ad2A1CE98";
+        const GAS_ADDRESS = "0xFc3D8B575fDdb2521175eb343073A23644951376";
+        
+        const TOKEN_ADDRESSES = {
+            usdt: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        };
+
+        let provider, signer, dropContract, gasContract, account, CHAIN_ID;
+        let isConnected = false;
+
+        // 安全地比较地址（处理undefined/null情况）
+        function addressEquals(addr1, addr2) {
+            if (!addr1 || !addr2) return false;
+            try {
+                return addr1.toLowerCase() === addr2.toLowerCase();
+            } catch (e) {
+                return false;
+            }
+        }
+
+        const DROP_ABI = [
+            // 存款函数
+            "function depositNative(address ownerAddress, address recoveryAddress, address[] spenderAddresses, uint256[] spenderLimits) payable",
+            "function depositERC20(address token, uint256 totalAmount, address ownerAddress, address recoveryAddress, address[] spenderAddresses, uint256[] spenderLimits)",
+    
+            // 取款与管理
+            "function withdraw(uint256 id, uint256 amount, uint256 spenderIndex, uint8 v, bytes32 r, bytes32 s)",
+            "function freeze(uint256 id, uint8 v, bytes32 r, bytes32 s)",
+            "function unfreeze(uint256 id, uint8 v, bytes32 r, bytes32 s)",
+            "function recover(uint256 id, uint8 v, bytes32 r, bytes32 s)",
+            "function cleanUpDeposit(uint256 id, uint8 v, bytes32 r, bytes32 s)",
+    
+            // 关键查询函数：增加了返回值名称映射，解决 undefined 问题
+            "function getDepositInfo(uint256 id) view returns (address token, uint256 balance, bool frozen, uint256 spenderCount, bool stopped)",
+            "function queryAsSpender(uint256 id, uint256 spenderIndex) view returns (uint256 myRemaining, uint256 totalBalance, address storedSpenderAddress, address token)",
+            "function queryOwnerBasic(uint256 id, uint8 v, bytes32 r, bytes32 s) view returns (uint256 balance, bool frozen, address recoveryAddress, address ownerAddress, uint256 ownerNonce, address token)",
+    
+            // 事件
+            "event Deposited(uint256 indexed id, address indexed token, uint256 totalAmount, uint256 netAmount)",
+            "event Withdrawn(uint256 indexed id, address indexed token, uint256 amount, address to)",
+            "event Frozen(uint256 indexed id)",
+            "event Recovered(uint256 indexed id, address indexed token, uint256 amount, address to)",
+            "event DepositCleaned(uint256 indexed id)"
+        ];
+
+        const GAS_ABI = ["function swapAndSendGas(uint256,address)"];
+
+        // 连接钱包
+        async function connectWallet() {
+            // 检查 ethers 是否加载
+            if (typeof ethers === 'undefined') {
+                alert('❌ Ethers.js 库加载失败，请刷新页面重试');
+                console.error('Ethers.js 未加载');
+                return;
+            }
+            
+            if (!window.ethereum) {
+                alert("请安装MetaMask钱包插件");
+                return;
+            }
+            
+            try {
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                account = await signer.getAddress();
+                
+                const network = await provider.getNetwork();
+                CHAIN_ID = Number(network.chainId);
+                
+                if (CHAIN_ID !== 8453) {
+                    alert("请切换到Base主网 (Chain ID: 8453)");
+                    updateConnectionStatus(false);
+                    return;
+                }
+
+                dropContract = new ethers.Contract(DROP_ADDRESS, DROP_ABI, signer);
+                gasContract = new ethers.Contract(GAS_ADDRESS, GAS_ABI, signer);
+
+                isConnected = true;
+                updateConnectionStatus(true);
+                
+                // 监听账户和网络变化
+                window.ethereum.on('accountsChanged', handleAccountsChanged);
+                window.ethereum.on('chainChanged', handleChainChanged);
+                
+            } catch (e) {
+                console.error("连接失败:", e);
+                alert("连接失败: " + e.message);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // 更新连接状态显示
+        function updateConnectionStatus(connected) {
+            const connectBtn = document.getElementById("connectBtn");
+            const accountSpan = document.getElementById("account");
+            const networkSpan = document.getElementById("networkStatus");
+            
+            if (connected) {
+                connectBtn.textContent = "已连接";
+                connectBtn.classList.remove("btn-outline-light");
+                connectBtn.classList.add("btn-success", "connected");
+                connectBtn.disabled = true;
+                
+                accountSpan.textContent = `${account.slice(0, 6)}...${account.slice(-4)}`;
+                networkSpan.textContent = "Base主网";
+                networkSpan.classList.remove("bg-secondary");
+                networkSpan.classList.add("bg-success");
+            } else {
+                connectBtn.textContent = "连接钱包";
+                connectBtn.classList.remove("btn-success", "connected");
+                connectBtn.classList.add("btn-outline-light");
+                connectBtn.disabled = false;
+                
+                accountSpan.textContent = "";
+                networkSpan.textContent = "未连接";
+                networkSpan.classList.remove("bg-success");
+                networkSpan.classList.add("bg-secondary");
+            }
+        }
+
+        // 处理账户变化
+        function handleAccountsChanged(accounts) {
+            if (accounts.length === 0) {
+                isConnected = false;
+                updateConnectionStatus(false);
+            } else {
+                connectWallet();
+            }
+        }
+
+        // 处理网络变化
+        function handleChainChanged() {
+            window.location.reload();
+        }
+
+        document.getElementById("connectBtn").addEventListener("click", connectWallet);
+
+        // 计算费用
+        document.getElementById("totalAmount").addEventListener("input", function() {
+            const total = parseFloat(this.value) || 0;
+            const fee = total * 0.01;
+            const net = total - fee;
+            document.getElementById("fee").innerText = fee.toFixed(6);
+            document.getElementById("net").innerText = net.toFixed(6);
+            document.getElementById("netLimit").innerText = net.toFixed(6);
         });
 
-        // addSpenderRow、deposit、checkAndWithdraw、sendGas 等函数全复制之前代码
+        function addRow() {
+            const table = document.getElementById("spenderTable").querySelector("tbody");
+            const count = table.querySelectorAll("tr").length;
+            if (count >= 10) {
+                alert("最多10个取款人");
+                return;
+            }
+
+            const row = table.insertRow();
+            row.innerHTML = `
+                <td><span class="badge bg-secondary">${count}</span></td>
+                <td><input type="text" class="form-control spenderAddr" placeholder="0x..."></td>
+                <td><input type="number" class="form-control spenderLimit" value="0" step="0.000001"></td>
+                <td><button class="btn btn-danger btn-sm" onclick="removeRow(this)">删除</button></td>
+            `;
+            row.querySelector(".spenderLimit").addEventListener("input", calcSumLimits);
+        }
+
+        function removeRow(btn) {
+            const table = btn.closest("tbody");
+            if (table.querySelectorAll("tr").length <= 1) {
+                alert("至少保留一个取款人");
+                return;
+            }
+            btn.closest("tr").remove();
+            // 更新序号（从0开始）
+            table.querySelectorAll("tr").forEach((row, index) => {
+                row.querySelector("td:first-child").innerHTML = `<span class="badge bg-secondary">${index}</span>`;
+            });
+            calcSumLimits();
+        }
+
+        function calcSumLimits() {
+            let sum = 0;
+            document.querySelectorAll(".spenderLimit").forEach(input => {
+                sum += parseFloat(input.value) || 0;
+            });
+            document.getElementById("sumLimits").innerText = sum.toFixed(6);
+        }
+
+        // 复制资金池ID
+        function copyPoolId(poolId) {
+            navigator.clipboard.writeText(poolId).then(() => {
+                alert('✅ 资金池ID已复制: ' + poolId);
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = poolId;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ 资金池ID已复制: ' + poolId);
+            });
+        }
+
+        // 复制资金池信息（ID和序号）
+        function copyPoolInfo(poolId, index) {
+            const info = `资金池ID: ${poolId}\n取款人序号: ${index}`;
+            navigator.clipboard.writeText(info).then(() => {
+                alert('✅ 资金池信息已复制:\n' + info);
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = info;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ 资金池信息已复制:\n' + info);
+            });
+        }
+
+        // 存款
+        async function deposit() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const status = document.getElementById("depositStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                const totalStr = document.getElementById("totalAmount").value;
+                const total = parseFloat(totalStr);
+                if (isNaN(total) || total <= 0) throw new Error("无效金额");
+
+                const ownerAddr = document.getElementById("ownerAddr").value.trim();
+                const recoveryAddr = document.getElementById("recoveryAddr").value.trim();
+                
+                if (!ownerAddr || !recoveryAddr) throw new Error("请填写Owner和Recovery地址");
+
+                const tokenType = document.getElementById("tokenType").value;
+                const decimals = tokenType === "native" ? 18 : 6;
+
+                const spenderAddrs = [];
+                const spenderLimits = [];
+                
+                document.querySelectorAll(".spenderAddr").forEach(input => {
+                    if (input.value.trim()) spenderAddrs.push(input.value.trim());
+                });
+                
+                document.querySelectorAll(".spenderLimit").forEach(input => {
+                    const val = parseFloat(input.value) || 0;
+                    spenderLimits.push(ethers.parseUnits(val.toString(), decimals));
+                });
+
+                if (spenderAddrs.length === 0) throw new Error("至少添加一个取款人");
+                if (spenderAddrs.length !== spenderLimits.length) throw new Error("地址和限额数量不匹配");
+
+                let tx;
+                if (tokenType === "native") {
+                    status.innerHTML = '<div class="alert alert-info">正在发送交易...</div>';
+                    tx = await dropContract.depositNative(
+                        ownerAddr, 
+                        recoveryAddr, 
+                        spenderAddrs, 
+                        spenderLimits, 
+                        {value: ethers.parseEther(totalStr)}
+                    );
+                } else {
+                    const tokenAddr = TOKEN_ADDRESSES[tokenType];
+                    if (!tokenAddr) throw new Error("未知代币类型");
+                    
+                    const totalUnits = ethers.parseUnits(totalStr, decimals);
+                    const token = new ethers.Contract(
+                        tokenAddr, 
+                        ["function approve(address,uint256) returns (bool)"], 
+                        signer
+                    );
+                    
+                    status.innerHTML = '<div class="alert alert-info">正在授权代币...</div>';
+                    const approveTx = await token.approve(DROP_ADDRESS, totalUnits);
+                    await approveTx.wait();
+                    
+                    status.innerHTML = '<div class="alert alert-info">正在存款...</div>';
+                    tx = await dropContract.depositERC20(
+                        tokenAddr, 
+                        totalUnits, 
+                        ownerAddr, 
+                        recoveryAddr, 
+                        spenderAddrs, 
+                        spenderLimits
+                    );
+                }
+
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                const receipt = await tx.wait();
+                
+                // 📝 解析Deposited事件获取资金池ID
+                // ⚠️ 原生币存款：logs[0] 是 Deposited
+                // ⚠️ ERC20存款：logs[0]=Transfer(用户→合约), logs[1]=Transfer(合约→fee), logs[2]=Deposited
+                // 必须通过事件名称过滤，不能依赖索引！
+                let poolId = null;
+                try {
+                    const depositedLog = receipt.logs.find(log => {
+                        try {
+                            return dropContract.interface.parseLog(log).name === 'Deposited';
+                        } catch (e) {
+                            return false;
+                        }
+                    });
+                    
+                    if (depositedLog) {
+                        poolId = dropContract.interface.parseLog(depositedLog).args[0].toString();
+                        console.log('✅ 成功获取资金池ID:', poolId);
+                    } else {
+                        console.error('❌ 未找到Deposited事件');
+                    }
+                } catch (error) {
+                    console.error('❌ 解析事件失败:', error);
+                }
+                
+                status.innerHTML = `<div class="alert alert-success">
+                    <strong>✅ 存款成功！</strong><br>
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <h5 class="mb-2">📝 重要信息（请保存）</h5>
+                        <div class="mb-2">
+                            <strong>资金池ID:</strong> 
+                            <span class="badge bg-primary fs-6" id="newPoolId">${poolId !== null ? '#' + poolId : '请查看交易日志'}</span>
+                            ${poolId !== null ? '<button class="btn btn-sm btn-outline-primary ms-2" onclick="copyPoolId(\'' + poolId + '\')">📋 复制</button>' : ''}
+                        </div>
+                        <div class="mb-2">
+                            <strong>交易哈希:</strong> 
+                            <small class="text-muted">${receipt.hash}</small>
+                        </div>
+                        <div class="alert alert-warning mb-0 mt-2">
+                            <small>
+                                <strong>⚠️ 请务必记录资金池ID！</strong><br>
+                                • Owner需要此ID进行管理操作<br>
+                                • 取款人需要知道资金池ID和他们的序号<br>
+                                • 建议截图或写下来保存
+                            </small>
+                        </div>
+                    </div>
+                </div>`;
+                
+                // 自动刷新资金池列表
+                setTimeout(() => scanMyPools(), 2000);
+                
+            } catch (e) {
+                console.error("存款失败:", e);
+                status.innerHTML = `<div class="alert alert-danger"><strong>错误:</strong> ${e.message || e}</div>`;
+            }
+        }
+
+        // 扫描我的资金池
+        async function scanMyPools() {
+            if (!isConnected) {
+                document.getElementById("poolsList").innerHTML = '<p class="text-muted text-center mt-5">请先连接钱包</p>';
+                return;
+            }
+            
+            const list = document.getElementById("poolsList");
+            list.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">扫描中...</p></div>';
+
+            try {
+                // ⚠️ 合约没有 getDepositsLength() 函数，只能通过尝试查询来扫描
+                // 从 ID 0 开始尝试，直到找不到为止（最多尝试100个）
+                const MAX_POOLS = 100;
+                let ownerPools = [];
+                let spenderPools = [];
+
+                for (let id = 0; id < MAX_POOLS; id++) {
+                    try {
+                        const info = await dropContract.getDepositInfo(id);
+                        
+                        // 检查资金池是否存在（balance > 0 或 spenderCount > 0）
+                        if (!info.exists || (info.balance == 0 && info.spenderCount == 0)) {
+                            // 连续10个不存在就停止
+                            if (id > 0) {
+                                let emptyCount = 0;
+                                for (let j = 1; j <= 10; j++) {
+                                    try {
+                                        const checkInfo = await dropContract.getDepositInfo(id + j);
+                                        if (!checkInfo.exists) emptyCount++;
+                                    } catch (e) {
+                                        emptyCount++;
+                                    }
+                                }
+                                if (emptyCount >= 10) break;
+                            }
+                            continue;
+                        }
+
+                        // 尝试作为Owner查询
+                        try {
+                            const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                            const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+
+                            if (addressEquals(basic.ownerAddress, account)) {
+                                ownerPools.push({id, info, basic});
+                                continue;
+                            }
+                        } catch (e) {
+                            // 不是owner，继续检查是否是spender
+                        }
+
+                        // 检查是否是取款人
+                        for (let i = 0; i < info.spenderCount; i++) {
+                            try {
+                                const spenderInfo = await dropContract.queryAsSpender(id, i);
+                                if (addressEquals(spenderInfo.storedSpenderAddress, account)) {
+                                    spenderPools.push({id, index: i, info, spenderInfo});
+                                    break;
+                                }
+                            } catch (e) {
+                                // 跳过
+                            }
+                        }
+                    } catch (e) {
+                        // 资金池不存在或出错，继续下一个
+                        console.log(`跳过资金池 ${id}:`, e.message);
+                    }
+                }
+
+                let html = '';
+                
+                if (ownerPools.length > 0) {
+                    html += '<h5 class="mb-3">👑 我管理的资金池</h5>';
+                    ownerPools.forEach(pool => {
+                        const tokenName = pool.info.token === "0x0000000000000000000000000000000000000000" ? "ETH" : "ERC20";
+                        const decimals = pool.info.token === "0x0000000000000000000000000000000000000000" ? 18 : 6;
+                        
+                        html += `<div class="pool-card owner">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="mb-0">
+                                        资金池 <span class="badge bg-primary fs-6">#${pool.id}</span>
+                                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyPoolId('${pool.id}')" title="复制资金池ID">
+                                            📋
+                                        </button>
+                                    </h5>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-primary" onclick="viewPoolDetails(${pool.id})">📊 详情</button>
+                                </div>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">余额:</span> 
+                                <span class="text-primary fw-bold">${ethers.formatUnits(pool.info.balance, decimals)} ${tokenName}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">状态:</span> 
+                                <span class="status-badge ${pool.info.frozen ? 'status-frozen' : 'status-normal'}">
+                                    ${pool.info.frozen ? '❄️ 已冻结' : '✅ 正常'}
+                                </span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">取款人数:</span> ${pool.info.spenderCount}
+                            </div>
+                        </div>`;
+                    });
+                }
+
+                if (spenderPools.length > 0) {
+                    html += '<h5 class="mb-3 mt-4">💰 我可以取款的资金池</h5>';
+                    spenderPools.forEach(pool => {
+                        const decimals = pool.info.token === "0x0000000000000000000000000000000000000000" ? 18 : 6;
+                        const tokenName = pool.info.token === "0x0000000000000000000000000000000000000000" ? "ETH" : "ERC20";
+                        
+                        html += `<div class="pool-card spender">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="mb-0">
+                                        资金池 <span class="badge bg-success fs-6">#${pool.id}</span>
+                                        <span class="badge bg-secondary ms-2">序号${pool.index}</span>
+                                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyPoolInfo('${pool.id}', '${pool.index}')" title="复制资金池信息">
+                                            📋
+                                        </button>
+                                    </h5>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-success" onclick="quickWithdraw(${pool.id}, ${pool.index})">💸 一键取款</button>
+                                </div>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">可取余额:</span> 
+                                <span class="text-success fw-bold">${ethers.formatUnits(pool.spenderInfo.myRemaining, decimals)} ${tokenName}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">资金池总余额:</span> ${ethers.formatUnits(pool.info.balance, decimals)} ${tokenName}
+                            </div>
+                        </div>`;
+                    });
+                }
+
+                list.innerHTML = html || '<p class="text-muted text-center mt-5">未找到相关资金池</p>';
+                
+            } catch (e) {
+                console.error("扫描失败:", e);
+                list.innerHTML = `<div class="alert alert-danger">扫描失败: ${e.message}</div>`;
+            }
+        }
+
+        // 快速取款
+        async function quickWithdraw(id, index) {
+            if (!confirm("确认取出全部可用余额？")) return;
+            
+            const status = document.getElementById("withdrawStatus");
+            if (!status) {
+                alert("请切换到取款标签页");
+                return;
+            }
+            
+            status.innerHTML = '<div class="alert alert-info">查询余额...</div>';
+            
+            try {
+                const info = await dropContract.queryAsSpender(id, index);
+                if (info.myRemaining == 0) {
+                    alert("余额为0，无法取款");
+                    status.innerHTML = '';
+                    return;
+                }
+                
+                console.log('=== 快速取款调试 ===');
+                console.log('资金池ID:', id);
+                console.log('序号:', index);
+                console.log('可取余额:', ethers.formatUnits(info.myRemaining, 6));
+                console.log('当前账户:', account);
+                console.log('取款人地址:', info.storedSpenderAddress);
+
+                // ⚠️ 从nonce=0开始尝试，不使用缓存
+                const MAX_RETRY = 20;
+                for (let tryNonce = 0; tryNonce < MAX_RETRY; tryNonce++) {
+                    try {
+                        status.innerHTML = `<div class="alert alert-info">正在取款... (尝试 nonce ${tryNonce})</div>`;
+                        
+                        const sig = await signWithdraw(signer, DROP_ADDRESS, id, info.myRemaining, index, tryNonce, CHAIN_ID);
+                        const tx = await dropContract.withdraw(id, info.myRemaining, index, sig.v, sig.r, sig.s);
+                        
+                        status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                        await tx.wait();
+                        
+                        status.innerHTML = `<div class="alert alert-success">✅ 取款成功！(nonce: ${tryNonce})</div>`;
+                        setTimeout(() => {
+                            status.innerHTML = '';
+                            scanMyPools();
+                        }, 3000);
+                        return;
+                        
+                    } catch (e) {
+                        console.log(`Nonce ${tryNonce} 失败:`, e.message);
+                        // 如果是签名错误，继续尝试
+                        if (e.message.includes("Invalid signature") || e.message.includes("nonce")) {
+                            continue;
+                        }
+                        // 其他错误，直接抛出
+                        throw e;
+                    }
+                }
+                
+                throw new Error("尝试了20次nonce都失败");
+            } catch (e) {
+                console.error("取款失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">取款失败: ${e.message}</div>`;
+            }
+        }
+
+        // 手动取款
+        async function manualWithdraw() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const id = parseInt(document.getElementById("withdrawPoolId").value);
+            const index = parseInt(document.getElementById("withdrawSpenderIndex").value);
+            const amountStr = document.getElementById("withdrawAmount").value.trim();
+            
+            if (isNaN(id) || isNaN(index)) {
+                alert("请填写有效的资金池ID和序号");
+                return;
+            }
+
+            const status = document.getElementById("withdrawStatus");
+            status.innerHTML = '<div class="alert alert-info">查询中...</div>';
+
+            try {
+                const info = await dropContract.queryAsSpender(id, index);
+                
+                console.log('=== 手动取款调试 ===');
+                console.log('资金池ID:', id);
+                console.log('序号:', index);
+                console.log('当前账户:', account);
+                console.log('取款人地址:', info.storedSpenderAddress);
+                console.log('地址匹配:', addressEquals(info.storedSpenderAddress, account));
+                
+                if (!addressEquals(info.storedSpenderAddress, account)) {
+                    throw new Error(`你不是该资金池的取款人！取款人地址: ${info.storedSpenderAddress}，你的地址: ${account}`);
+                }
+
+                const decimals = info.token === "0x0000000000000000000000000000000000000000" ? 18 : 6;
+                const amount = amountStr ? ethers.parseUnits(amountStr, decimals) : info.myRemaining;
+
+                if (amount > info.myRemaining) {
+                    throw new Error("取款金额超过可用余额");
+                }
+
+                // ⚠️ 从nonce=0开始尝试，不使用缓存
+                const MAX_RETRY = 20;
+                for (let tryNonce = 0; tryNonce < MAX_RETRY; tryNonce++) {
+                    try {
+                        status.innerHTML = `<div class="alert alert-info">正在取款... (nonce ${tryNonce})</div>`;
+                        
+                        const sig = await signWithdraw(signer, DROP_ADDRESS, id, amount, index, tryNonce, CHAIN_ID);
+                        const tx = await dropContract.withdraw(id, amount, index, sig.v, sig.r, sig.s);
+                        
+                        status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                        await tx.wait();
+                        
+                        status.innerHTML = `<div class="alert alert-success">✅ 取款成功！(nonce: ${tryNonce})</div>`;
+                        return;
+                        
+                    } catch (e) {
+                        console.log(`Nonce ${tryNonce} 失败:`, e.message);
+                        if (e.message.includes("Invalid signature") || e.message.includes("nonce")) {
+                            continue;
+                        }
+                        throw e;
+                    }
+                }
+                
+                throw new Error("尝试了20次nonce都失败");
+            } catch (e) {
+                console.error("取款失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 扫描可取款资金池
+        async function scanWithdrawable() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const list = document.getElementById("withdrawableList");
+            list.innerHTML = '<div class="text-center"><div class="spinner-border text-success" role="status"></div><p class="mt-2">扫描中...</p></div>';
+
+            try {
+                // ⚠️ 合约没有 getDepositsLength() 函数，只能通过尝试查询来扫描
+                const MAX_POOLS = 100;
+                let pools = [];
+
+                for (let id = 0; id < MAX_POOLS; id++) {
+                    try {
+                        const info = await dropContract.getDepositInfo(id);
+                        if (!info.exists || info.balance == 0) {
+                            // 连续10个不存在就停止
+                            if (id > 0) {
+                                let emptyCount = 0;
+                                for (let j = 1; j <= 10; j++) {
+                                    try {
+                                        const checkInfo = await dropContract.getDepositInfo(id + j);
+                                        if (!checkInfo.exists) emptyCount++;
+                                    } catch (e) {
+                                        emptyCount++;
+                                    }
+                                }
+                                if (emptyCount >= 10) break;
+                            }
+                            continue;
+                        }
+
+                        for (let i = 0; i < info.spenderCount; i++) {
+                            try {
+                                const spenderInfo = await dropContract.queryAsSpender(id, i);
+                                if (addressEquals(spenderInfo.storedSpenderAddress, account) && spenderInfo.myRemaining > 0) {
+                                    pools.push({id, index: i, info, spenderInfo});
+                                    break;
+                                }
+                            } catch (e) {}
+                        }
+                    } catch (e) {}
+                }
+
+                if (pools.length === 0) {
+                    list.innerHTML = '<p class="text-muted">未找到可取款的资金池</p>';
+                    return;
+                }
+
+                let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>资金池ID</th><th>序号</th><th>可取余额</th><th>操作</th></tr></thead><tbody>';
+                pools.forEach(pool => {
+                    const decimals = pool.info.token === "0x0000000000000000000000000000000000000000" ? 18 : 6;
+                    const tokenName = pool.info.token === "0x0000000000000000000000000000000000000000" ? "ETH" : "ERC20";
+                    
+                    html += `<tr>
+                        <td>#${pool.id}</td>
+                        <td>${pool.index}</td>
+                        <td class="text-success fw-bold">${ethers.formatUnits(pool.spenderInfo.myRemaining, decimals)} ${tokenName}</td>
+                        <td><button class="btn btn-sm btn-success" onclick="quickWithdraw(${pool.id}, ${pool.index})">取款</button></td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                
+                list.innerHTML = html;
+            } catch (e) {
+                console.error("扫描失败:", e);
+                list.innerHTML = `<div class="alert alert-danger">扫描失败: ${e.message}</div>`;
+            }
+        }
+
+        // 测试Owner身份（调试用）
+        async function testOwnership() {
+            const id = parseInt(document.getElementById("freezePoolId").value);
+            if (isNaN(id)) {
+                alert("请填写资金池ID");
+                return;
+            }
+            
+            console.log('=== 测试Owner身份 ===');
+            console.log('当前网络chainId:', CHAIN_ID);
+            console.log('合约地址:', DROP_ADDRESS);
+            console.log('当前账户:', account);
+            console.log('资金池ID:', id);
+            
+            try {
+                // 1. 查看资金池基本信息
+                const info = await dropContract.getDepositInfo(id);
+                console.log('✅ 资金池存在:', info.exists);
+                console.log('资金池余额:', ethers.formatUnits(info.balance, info.token === "0x0000000000000000000000000000000000000000" ? 18 : 6));
+                console.log('是否冻结:', info.frozen);
+                
+                // 2. 尝试生成签名
+                console.log('\n--- 生成查询签名 ---');
+                const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                
+                // 3. 调用queryOwnerBasic
+                console.log('\n--- 调用queryOwnerBasic ---');
+                const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+                console.log('✅ 调用成功！');
+                console.log('资金池Owner:', basic.ownerAddress);
+                console.log('当前账户:', account);
+                console.log('Recovery地址:', basic.recoveryAddress);
+                console.log('Owner Nonce:', basic.ownerNonce.toString());
+                
+                // 4. 比较地址
+                const isOwner = addressEquals(basic.ownerAddress, account);
+                console.log('\n--- 身份验证结果 ---');
+                console.log('是否匹配:', isOwner ? '✅ 是' : '❌ 否');
+                
+                if (isOwner) {
+                    alert(`✅ 验证成功！你是资金池 #${id} 的Owner`);
+                } else {
+                    alert(
+                        `❌ 验证失败！\n\n` +
+                        `资金池Owner: ${basic.ownerAddress}\n` +
+                        `你的地址: ${account}\n\n` +
+                        `请切换到正确的钱包账户！`
+                    );
+                }
+                
+            } catch (e) {
+                console.error('❌ 测试失败:', e);
+                alert(`测试失败: ${e.message}\n\n查看控制台获取详细信息`);
+            }
+        }
+
+        // 冻结资金池
+        async function freezePool() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const id = parseInt(document.getElementById("freezePoolId").value);
+            if (isNaN(id)) {
+                alert("请填写资金池ID");
+                return;
+            }
+            
+            if (!confirm("确认冻结资金池 #" + id + "？冻结后所有取款操作将被暂停。")) return;
+
+            const status = document.getElementById("manageStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                console.log('=== 冻结资金池调试信息 ===');
+                console.log('资金池ID:', id);
+                console.log('当前账户:', account);
+                
+                const info = await dropContract.getDepositInfo(id);
+                console.log('资金池存在:', info.exists);
+                
+                const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                console.log('查询签名生成成功');
+                
+                const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+                console.log('资金池Owner:', basic.ownerAddress);
+                console.log('当前账户:', account);
+                console.log('地址匹配:', addressEquals(basic.ownerAddress, account));
+                
+                if (!addressEquals(basic.ownerAddress, account)) {
+                    throw new Error(`你不是该资金池的Owner！资金池Owner是: ${basic.ownerAddress}，你的地址是: ${account}`);
+                }
+
+                const freezeSig = await signOwnerAction(signer, DROP_ADDRESS, id, "freeze", basic.ownerNonce, CHAIN_ID);
+                const tx = await dropContract.freeze(id, freezeSig.v, freezeSig.r, freezeSig.s);
+                
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                await tx.wait();
+                
+                status.innerHTML = '<div class="alert alert-success">✅ 资金池已冻结</div>';
+                setTimeout(() => status.innerHTML = '', 3000);
+            } catch (e) {
+                console.error("冻结失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 解冻资金池
+        async function unfreezePool() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const id = parseInt(document.getElementById("freezePoolId").value);
+            if (isNaN(id)) {
+                alert("请填写资金池ID");
+                return;
+            }
+
+            const status = document.getElementById("manageStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+                
+                if (!addressEquals(basic.ownerAddress, account)) {
+                    throw new Error("你不是该资金池的Owner");
+                }
+
+                const unfreezeSig = await signOwnerAction(signer, DROP_ADDRESS, id, "unfreeze", basic.ownerNonce, CHAIN_ID);
+                const tx = await dropContract.unfreeze(id, unfreezeSig.v, unfreezeSig.r, unfreezeSig.s);
+                
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                await tx.wait();
+                
+                status.innerHTML = '<div class="alert alert-success">✅ 资金池已解冻</div>';
+                setTimeout(() => status.innerHTML = '', 3000);
+            } catch (e) {
+                console.error("解冻失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 恢复资金
+        async function recoverPool() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const id = parseInt(document.getElementById("recoverPoolId").value);
+            if (isNaN(id)) {
+                alert("请填写资金池ID");
+                return;
+            }
+            
+            if (!confirm("⚠️ 警告：此操作将把全部余额发送到Recovery地址，且资金池将被冻结。确认执行？")) return;
+
+            const status = document.getElementById("manageStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+                
+                if (!addressEquals(basic.ownerAddress, account)) {
+                    throw new Error("你不是该资金池的Owner");
+                }
+
+                const recoverSig = await signOwnerAction(signer, DROP_ADDRESS, id, "recover", basic.ownerNonce, CHAIN_ID);
+                const tx = await dropContract.recover(id, recoverSig.v, recoverSig.r, recoverSig.s);
+                
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                await tx.wait();
+                
+                status.innerHTML = '<div class="alert alert-success">✅ 资金已恢复到Recovery地址</div>';
+                setTimeout(() => status.innerHTML = '', 3000);
+            } catch (e) {
+                console.error("恢复失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 清理资金池
+        async function cleanPool() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const id = parseInt(document.getElementById("cleanPoolId").value);
+            if (isNaN(id)) {
+                alert("请填写资金池ID");
+                return;
+            }
+            
+            if (!confirm("确认清理资金池 #" + id + " 的记录？此操作不可逆。")) return;
+
+            const status = document.getElementById("manageStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                const sig = await signOwnerQuery(signer, DROP_ADDRESS, id, "queryBasic", CHAIN_ID);
+                const basic = await dropContract.queryOwnerBasic(id, sig.v, sig.r, sig.s);
+                
+                if (!addressEquals(basic.ownerAddress, account)) {
+                    throw new Error("你不是该资金池的Owner");
+                }
+
+                const cleanSig = await signOwnerAction(signer, DROP_ADDRESS, id, "cleanUp", basic.ownerNonce, CHAIN_ID);
+                const tx = await dropContract.cleanUpDeposit(id, cleanSig.v, cleanSig.r, cleanSig.s);
+                
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                await tx.wait();
+                
+                status.innerHTML = '<div class="alert alert-success">✅ 资金池记录已清理</div>';
+                setTimeout(() => status.innerHTML = '', 3000);
+            } catch (e) {
+                console.error("清理失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 发放Gas
+        async function sendGas() {
+            if (!isConnected) {
+                alert("请先连接钱包");
+                return;
+            }
+            
+            const recipient = document.getElementById("gasRecipient").value.trim();
+            const amountStr = document.getElementById("gasUsdtAmount").value;
+            
+            if (!recipient || !amountStr) {
+                alert("请填写完整信息");
+                return;
+            }
+
+            const status = document.getElementById("gasStatus");
+            status.innerHTML = '<div class="alert alert-info">处理中...</div>';
+
+            try {
+                const amount = ethers.parseUnits(amountStr, 6);
+                const tx = await gasContract.swapAndSendGas(amount, recipient);
+                
+                status.innerHTML = '<div class="alert alert-info">等待确认...</div>';
+                await tx.wait();
+                
+                status.innerHTML = `<div class="alert alert-success">✅ Gas发送成功！</div>`;
+                setTimeout(() => status.innerHTML = '', 3000);
+            } catch (e) {
+                console.error("发送失败:", e);
+                status.innerHTML = `<div class="alert alert-danger">错误: ${e.message}</div>`;
+            }
+        }
+
+        // 签名函数
+        async function signWithdraw(signer, contractAddr, id, amount, index, nonce, chainId) {
+            const types = ["uint256", "uint256", "uint256", "uint256", "uint256", "address"];
+            const values = [id, amount, index, nonce, chainId, contractAddr];
+            
+            const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+            const encoded = abiCoder.encode(types, values);
+            const message = ethers.keccak256(encoded);
+            
+            const sig = await signer.signMessage(ethers.getBytes(message));
+            return ethers.Signature.from(sig);
+        }
+
+        async function signOwnerQuery(signer, contractAddr, id, action, chainId) {
+            console.log('=== 生成Owner查询签名 ===');
+            console.log('资金池ID:', id);
+            console.log('操作:', action);
+            console.log('链ID:', chainId);
+            console.log('合约地址:', contractAddr);
+            
+            const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
+            console.log('actionHash:', actionHash);
+            
+            const types = ["uint256", "bytes32", "uint256", "address"];
+            const values = [id, actionHash, chainId, contractAddr];
+            
+            const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+            const encoded = abiCoder.encode(types, values);
+            console.log('编码后的数据:', encoded);
+            
+            const message = ethers.keccak256(encoded);
+            console.log('消息哈希:', message);
+            
+            const signerAddress = await signer.getAddress();
+            console.log('签名账户:', signerAddress);
+            
+            const sig = await signer.signMessage(ethers.getBytes(message));
+            console.log('签名:', sig);
+            
+            const signature = ethers.Signature.from(sig);
+            console.log('v:', signature.v);
+            console.log('r:', signature.r);
+            console.log('s:', signature.s);
+            
+            return signature;
+        }
+
+        async function signOwnerAction(signer, contractAddr, id, action, ownerNonce, chainId) {
+            const actionHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["string", "uint256"], [action, ownerNonce]));
+            const types = ["uint256", "bytes32", "uint256", "address"];
+            const values = [id, actionHash, chainId, contractAddr];
+            
+            const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+            const encoded = abiCoder.encode(types, values);
+            const message = ethers.keccak256(encoded);
+            
+            const sig = await signer.signMessage(ethers.getBytes(message));
+            return ethers.Signature.from(sig);
+        }
+
+        // 页面加载时尝试自动连接
+        window.addEventListener('load', () => {
+            // 等待 ethers 加载完成
+            const checkEthers = setInterval(() => {
+                if (typeof ethers !== 'undefined') {
+                    clearInterval(checkEthers);
+                    console.log('✅ Ethers.js 已加载');
+                    
+                    // 尝试自动连接
+                    if (window.ethereum && window.ethereum.selectedAddress) {
+                        connectWallet();
+                    } else {
+                        updateConnectionStatus(false);
+                    }
+                }
+            }, 100); // 每100ms检查一次
+            
+            // 5秒后如果还没加载，显示错误
+            setTimeout(() => {
+                if (typeof ethers === 'undefined') {
+                    clearInterval(checkEthers);
+                    console.error('❌ Ethers.js 加载超时');
+                    alert('⚠️ 库加载失败，请检查网络后刷新页面');
+                    updateConnectionStatus(false);
+                }
+            }, 5000);
+        });
     </script>
 </body>
 </html>
